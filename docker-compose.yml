@@ -1,0 +1,148 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: expense-tracker-db
+    environment:
+      POSTGRES_DB: ${DB_NAME:-postgres}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  flyway:
+    image: flyway/flyway:11-alpine
+    container_name: expense-tracker-flyway
+    command: migrate
+    volumes:
+      - ./backend/migrations:/flyway/sql
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/expense_tracker
+      FLYWAY_USER: ${DB_USER:-postgres}
+      FLYWAY_PASSWORD: ${DB_PASSWORD:-postgres}
+      FLYWAY_BASELINE_ON_MIGRATE: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4
+    container_name: expense-tracker-keycloak
+    env_file:
+      - .env
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: postgres
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+      KC_HTTP_ENABLED: "true"
+    command: start-dev --import-realm
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./docker/keycloak/export:/opt/keycloak/data/import
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  keycloak-config:
+    image: curlimages/curl:latest
+    container_name: expense-tracker-keycloak-config
+    env_file:
+      - .env
+    volumes:
+      - ./docker/keycloak/configure-idps.sh:/configure-idps.sh:ro
+    command: sh /configure-idps.sh
+    depends_on:
+      keycloak:
+        condition: service_started
+  api:
+    build:
+      context: ./backend
+      dockerfile: docker/Dockerfile
+    container_name: expense-tracker-api
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: ${API_PORT:-3000}
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-expense_tracker}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-defaultsecret}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      PLAID_CLIENT_ID: ${PLAID_CLIENT_ID:-default}
+      PLAID_SECRET: ${PLAID_SECRET:-default}
+      PLAID_ENV: ${PLAID_ENV:-sandbox}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+    ports:
+      - "${API_PORT:-3000}:3000"
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/prisma:/app/prisma
+    depends_on:
+      postgres:
+        condition: service_healthy
+      flyway:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: docker/Dockerfile
+    container_name: expense-tracker-frontend
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:3000/api/v1}
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+    depends_on:
+      - api
+  metabase:
+    image: metabase/metabase:v0.56.x
+    container_name: expense-tracker-metabase
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_DBNAME: metabase
+      MB_DB_PORT: 5432
+      MB_DB_USER: ${DB_USER:-postgres}
+      MB_DB_PASS: ${DB_PASSWORD:-postgres}
+      MB_DB_HOST: postgres
+    ports:
+      - "3001:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+  pg-backup: # for backup on demand and restoration IT IS NEEDED
+    image: postgres:18
+    container_name: expense-tracker-pg-backup
+    entrypoint: ["/bin/sh", "/scripts/backup.sh"]
+    environment:
+      POSTGRES_DB: ${DB_NAME:-postgres}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      PGPASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      BACKUP_DIR: /backup
+    volumes:
+      - ./docker/postgres/backup:/scripts:ro
+      - ./backups:/backup
+    depends_on:
+      postgres:
+        condition: service_healthy
+volumes:
+  postgres_data:

@@ -1,0 +1,12 @@
+// Bootswatch Zephyr Theme integration
+// 1) Load Zephyr variables (overrides Bootstrap defaults)
+@import 'bootswatch/dist/zephyr/variables';
+
+// 2) Load Bootstrap with Zephyr variables applied
+@import 'bootstrap/scss/bootstrap';
+
+// 3) Load Zephyr component styles
+@import 'bootswatch/dist/zephyr/bootswatch';
+
+// 4) App-specific tweaks (kept minimal to respect theme)
+@import '../styles/theme.scss';

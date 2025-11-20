@@ -1,0 +1,78 @@
+// Keep app-specific tweaks minimal to let Bootswatch Zephyr styles apply.
+// Avoid overriding colors/typography/backgrounds defined by the theme.
+
+// Example spacing utility additions (safe with themes):
+.content-section {
+  margin-block: 1rem;
+}
+
+// Example utility to standardize card padding without color overrides:
+.card-body {
+  padding: 1rem 1.25rem;
+}
+
+// Guard against accidental horizontal overflow from rogue elements
+body {
+  overflow-x: hidden;
+}
+
+// Ensure media elements don't overflow their containers
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Reports page specific tweaks to keep it compact and fit to screen */
+.reports-page {
+  font-size: 0.95rem;
+
+  .card-title {
+    font-size: 0.95rem;
+  }
+
+  h1.h3 {
+    font-size: 1.25rem; /* match Expenses smaller heading */
+  }
+
+  // Additional desktop trimming to reduce vertical space
+  @media (min-height: 800px) {
+    .card-body {
+      padding: 0.6rem 0.75rem;
+    }
+    .card-title {
+      margin-bottom: 0.25rem;
+    }
+  }
+}
+
+/* Modal slide and small-screen drawer behavior */
+.modal.modal-slide .modal-dialog {
+  transition: transform 250ms ease-out;
+}
+
+/* Off-screen by default for mobile -> slide in */
+@media (max-width: 576px) {
+  .modal.modal-slide .modal-dialog {
+    transform: translateY(100%);
+    margin: 0;
+  }
+
+  .modal.modal-slide.show .modal-dialog {
+    transform: translateY(0);
+  }
+}
+
+/* Slide from right on small landscape devices */
+@media (max-width: 767px) and (orientation: landscape) {
+  .modal.modal-slide .modal-dialog {
+    transform: translateX(100%);
+    margin: 0;
+  }
+
+  .modal.modal-slide.show .modal-dialog {
+    transform: translateX(0);
+  }
+}

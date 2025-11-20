@@ -1,0 +1,256 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                   String                @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  email                String                @unique @db.VarChar(255)
+  firstName            String?               @map("first_name") @db.VarChar(100)
+  lastName             String?               @map("last_name") @db.VarChar(100)
+  defaultCategoryId    String?               @map("default_category_id") @db.Uuid
+  dateFormat           String?               @default("MM/DD/YYYY") @map("date_format") @db.VarChar(20)
+  currency             String?               @default("USD") @db.VarChar(3)
+  createdAt            DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  keycloakSub          String?               @unique(map: "idx_users_keycloak_sub_unique") @map("keycloak_sub") @db.VarChar(255)
+  categories           Category[]            @relation("UserCustomCategories")
+  expenses             Expense[]
+  financialConnections FinancialConnection[]
+  importSessions       ImportSession[]
+  incomes              Income[]
+  defaultCategory      Category?             @relation("UserDefaultCategory", fields: [defaultCategoryId], references: [id], onUpdate: NoAction, map: "fk_users_default_category")
+
+  @@map("users")
+}
+
+model Category {
+  id               String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name             String        @db.VarChar(100)
+  type             CategoryType
+  colorCode        String?       @map("color_code") @db.VarChar(7)
+  icon             String?       @db.VarChar(50)
+  userId           String?       @map("user_id") @db.Uuid
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt        DateTime?     @map("deleted_at") @db.Timestamptz(6)
+  budgetAmount     Decimal?      @map("budget_amount") @db.Decimal(12, 2)
+  budgetPeriod     BudgetPeriod? @map("budget_period")
+  user             User?         @relation("UserCustomCategories", fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  expenses         Expense[]
+  subcategories    Subcategory[] @relation("CategorySubcategories")
+  usersWithDefault User[]        @relation("UserDefaultCategory")
+
+  @@index([type], map: "idx_categories_type")
+  @@index([userId], map: "idx_categories_user_id")
+  @@map("categories")
+}
+
+model Subcategory {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String        @db.VarChar(100)
+  categoryId   String        @map("category_id") @db.Uuid
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  budgetAmount Decimal?      @map("budget_amount") @db.Decimal(12, 2)
+  budgetPeriod BudgetPeriod? @map("budget_period")
+  expenses     Expense[]
+  category     Category      @relation("CategorySubcategories", fields: [categoryId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([categoryId, name], name: "idx_subcategories_category_name_unique", map: "idx_subcategories_category_name_unique")
+  @@index([categoryId], map: "idx_subcategories_category_id")
+  @@map("subcategories")
+}
+
+model Expense {
+  id              String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId          String               @map("user_id") @db.Uuid
+  categoryId      String               @map("category_id") @db.Uuid
+  amount          Decimal              @db.Decimal(10, 2)
+  date            DateTime             @db.Date
+  description     String?
+  source          ExpenseSource        @default(manual)
+  status          ExpenseStatus        @default(confirmed)
+  importSessionId String?              @map("import_session_id") @db.Uuid
+  connectionId    String?              @map("connection_id") @db.Uuid
+  externalId      String?              @map("external_id") @db.VarChar(255)
+  merchantName    String?              @map("merchant_name") @db.VarChar(255)
+  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime?            @map("deleted_at") @db.Timestamptz(6)
+  subcategoryId   String?              @map("subcategory_id") @db.Uuid
+  category        Category             @relation(fields: [categoryId], references: [id], onUpdate: NoAction)
+  connection      FinancialConnection? @relation(fields: [connectionId], references: [id], onUpdate: NoAction)
+  importSession   ImportSession?       @relation(fields: [importSessionId], references: [id], onUpdate: NoAction)
+  subcategory     Subcategory?         @relation(fields: [subcategoryId], references: [id], onUpdate: NoAction)
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([categoryId], map: "idx_expenses_category_id")
+  @@index([connectionId], map: "idx_expenses_connection_id")
+  @@index([date], map: "idx_expenses_date")
+  @@index([importSessionId], map: "idx_expenses_import_session_id")
+  @@index([status], map: "idx_expenses_status")
+  @@index([subcategoryId], map: "idx_expenses_subcategory_id")
+  @@index([userId, date(sort: Desc)], map: "idx_expenses_user_date")
+  @@index([userId], map: "idx_expenses_user_id")
+  @@index([userId, subcategoryId], map: "idx_expenses_user_subcategory")
+  @@map("expenses")
+}
+
+model ImportSession {
+  id             String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  fileName       String       @map("file_name") @db.VarChar(255)
+  fileType       FileType     @map("file_type")
+  totalRows      Int          @default(0) @map("total_rows")
+  successfulRows Int          @default(0) @map("successful_rows")
+  failedRows     Int          @default(0) @map("failed_rows")
+  errorDetails   Json?        @map("error_details")
+  status         ImportStatus @default(processing)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  expenses       Expense[]
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([createdAt(sort: Desc)], map: "idx_import_sessions_created_at")
+  @@index([status], map: "idx_import_sessions_status")
+  @@index([userId], map: "idx_import_sessions_user_id")
+  @@map("import_sessions")
+}
+
+model FinancialConnection {
+  id              String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId          String           @map("user_id") @db.Uuid
+  institutionName String           @map("institution_name") @db.VarChar(255)
+  accountId       String           @map("account_id") @db.VarChar(255)
+  accessToken     String           @map("access_token")
+  itemId          String           @map("item_id") @db.VarChar(255)
+  status          ConnectionStatus @default(active)
+  lastSyncAt      DateTime?        @map("last_sync_at") @db.Timestamptz(6)
+  errorMessage    String?          @map("error_message")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  expenses        Expense[]
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([userId, itemId], map: "idx_financial_connections_user_item")
+  @@index([status], map: "idx_financial_connections_status")
+  @@index([userId], map: "idx_financial_connections_user_id")
+  @@map("financial_connections")
+}
+
+model Income {
+  id          String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId      String          @map("user_id") @db.Uuid
+  amount      Decimal         @db.Decimal(12, 2)
+  date        DateTime        @db.Date
+  source      IncomeSource    @default(salary)
+  frequency   IncomeFrequency @default(one_time)
+  description String?
+  employer    String?         @db.VarChar(255)
+  isRecurring Boolean?        @default(false) @map("is_recurring")
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime?       @map("deleted_at") @db.Timestamptz(6)
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userId], map: "idx_incomes_user_id")
+  @@index([date], map: "idx_incomes_date")
+  @@index([userId, date(sort: Desc)], map: "idx_incomes_user_date")
+  @@index([source], map: "idx_incomes_source")
+  @@index([frequency], map: "idx_incomes_frequency")
+  @@map("incomes")
+}
+
+model flyway_schema_history {
+  installed_rank Int      @id(map: "flyway_schema_history_pk")
+  version        String?  @db.VarChar(50)
+  description    String   @db.VarChar(200)
+  type           String   @db.VarChar(20)
+  script         String   @db.VarChar(1000)
+  checksum       Int?
+  installed_by   String   @db.VarChar(100)
+  installed_on   DateTime @default(now()) @db.Timestamp(6)
+  execution_time Int
+  success        Boolean
+
+  @@index([success], map: "flyway_schema_history_s_idx")
+}
+
+enum CategoryType {
+  predefined
+  custom
+
+  @@map("category_type")
+}
+
+enum ExpenseSource {
+  manual
+  imported
+  api
+
+  @@map("expense_source")
+}
+
+enum ExpenseStatus {
+  confirmed
+  pending
+
+  @@map("expense_status")
+}
+
+enum FileType {
+  xlsx
+  csv
+
+  @@map("file_type")
+}
+
+enum ImportStatus {
+  processing
+  completed
+  failed
+
+  @@map("import_status")
+}
+
+enum ConnectionStatus {
+  active
+  disconnected
+  error
+
+  @@map("connection_status")
+}
+
+enum BudgetPeriod {
+  monthly
+  annual
+
+  @@map("budget_period")
+}
+
+enum IncomeSource {
+  salary
+  bonus
+  investment
+  rental
+  freelance
+  gift
+  other
+
+  @@map("income_source")
+}
+
+enum IncomeFrequency {
+  one_time
+  weekly
+  biweekly
+  monthly
+  quarterly
+  annual
+
+  @@map("income_frequency")
+}
