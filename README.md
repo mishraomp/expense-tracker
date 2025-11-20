@@ -52,30 +52,38 @@ Key goals:
 
 Root layout (truncated example):
 ```
-backend/
+This project is a practical, work‑in‑progress personal finance app. You can add expenses and incomes, organize them under categories and subcategories, and view a yearly **Income vs Expense** chart with a drill‑down pie for any month. Import sessions, exports, and color‑coded categories are already in place. Some things (like recurring expenses and fuller budgeting) are only partially implemented or are still ideas; they are called out clearly below so nothing is overstated.
 	src/                NestJS modules
 	prisma/             Prisma schema & migrations
 	migrations/         SQL migrations (versioned)
-	docker/             Backend Dockerfile
-frontend/
-	src/                React application (features, components, services)
-	docker/             Frontend Dockerfile + Nginx config
-docker/
-	keycloak/           Realm export & IDP config scripts
-	postgres/           Initialization SQL
-specs/                Specs, plans, research, OpenAPI definitions
-manage-services.ps1   Helper script to start/stop core services
-docker-compose.yml    Dev compose (Postgres, Keycloak, app layering)
-```
+## 2. Core Features (Implemented vs Planned)
+Implemented (verified in code):
+- Expense CRUD (`backend/src/modules/expenses/`, Prisma `Expense` model).
+- Income CRUD (`backend/src/modules/incomes/`, Prisma `Income` model).
+- Category & Subcategory management (`categories/`, `subcategories/` modules; Prisma models have `colorCode`).
+- Year-to-date Income vs Expense chart with month drill‑down (`frontend/src/features/reports/components/IncomeVsExpenseReport.tsx`).
+- Full‑screen subcategory breakdown pie modal (`SubcategoryBreakdownModal.tsx`) with dollars + percentages.
+- Import sessions (`ImportSession` model) and basic CSV import path (`import` module) plus export scaffolding (`export` module).
+- Deduplication migration (`migrations/V2.2.0__expense_dedup.sql`).
+- Keycloak authentication (realm export + guards `jwt-auth.guard.ts`, `keycloak-auth.guard.ts`).
+- Color assignment for chart slices (logic in D3 pie / chart components).
+- Responsive React + Bootstrap + Sass styling.
+- Accessibility touches: ARIA labels on modals, charts provide `<title>` and `<desc>`; form inputs have labels.
+
+Partially implemented / Planned:
+- Recurring expenses: UI fields exist in `ExpenseForm.tsx` but Prisma `Expense` currently has no recurrence columns—feature not persisted yet.
+- Budget tracking: `budgetAmount` and `budgetPeriod` exist on Category/Subcategory models; no exposed UI or calculations yet.
+- Role / scope enforcement beyond basic auth: not yet present.
+- Advanced exports (PDF, images) – future idea.
 
 Notable backend modules (under `backend/src/modules/`):
-- `categories`, `subcategories`, `expenses`, `reports`, `import`, `export`, `users`
+- `categories`, `subcategories`, `expenses`, `incomes`, `reports`, `import`, `export`, `users`
 
 Frontend domain segmentation (under `frontend/src/features/`):
 - `auth`, `expenses`, `reports`, `import`, `subcategories`, etc.
 
 ---
-## 4. Tech Stack
+./manage-services.ps1 start     # spins up Postgres + Keycloak (and optionally builds images)
 Backend:
 - NestJS (modular architecture)
 - Prisma ORM + PostgreSQL
@@ -101,34 +109,45 @@ Prerequisites:
 - Node.js (LTS recommended)
 - Docker Desktop
 - PowerShell 5.1+ (Windows) or compatible shell
+## 10. Data Model Summary (High-Level)
+Key entities (Prisma models):
+- `User` – basic profile + preferences (date format, currency) and link to Keycloak subject.
+- `Category` – may include color + optional budget fields (`budgetAmount`, `budgetPeriod`).
+- `Subcategory` – nested under Category; also optional budget fields.
+- `Expense` – amount, date, description, links to user/category/subcategory; NO recurrence fields yet.
+- `Income` – amount, date, source, frequency, optional recurrence flag.
+- `ImportSession` – tracks file import attempts and their status.
+- `FinancialConnection` – placeholder for external account linking (future expansion).
 
-Steps:
-```powershell
-# From repo root
-.\n+.\n+./manage-services.ps1 start     # spins up Postgres + Keycloak (and optionally builds images)
-
+Budget and recurring expense logic: only structural fields (budget) exist; recurrence for expenses is UI-only at this time.
 # Backend
 cd backend
-npm install
-npx prisma generate
-npm run dev
+Implemented:
+- Monthly Income vs Expense bar chart (locked to current year; domain uses string YYYY-MM for timezone stability).
+- On-click month ➜ full-screen subcategory pie modal (shows % + dollar value).
+- Color palette logic for slices (defaults + fallback hue generation).
+- Accessible chart semantics (`<title>`, `<desc>`, legend group, focusable paths).
 
 # Frontend
 cd ../frontend
 npm install
+CSV import pipeline: uploaded file staged in `backend/uploads/` (gitignored). Import sessions tracked in DB. Export module present (implementation scope subject to expansion). Deduplication migration (`V2.2.0__expense_dedup.sql`) reduces duplicates.
 npm run dev     # visits http://localhost:5173
 ```
+Backend:
+- Contract test example (`backend/src/tests/contract/reports.spec.ts`).
+- Vitest configuration (`backend/vitest.config.ts`).
+Frontend:
+- Vitest + Testing Library setup (`frontend/tests/setup.ts`).
+Current coverage is limited; more tests welcome.
 
-Stop services:
-```powershell
-./manage-services.ps1 stop
-```
-
-Rebuild containers:
-```powershell
+-- Expenses table: logic isolated in an inner component to stabilize column definitions
+-- Recurring expenses (persisted model fields) and richer recurrence handling
+-- Recurring incomes enhancements
 ./manage-services.ps1 rebuild
 ```
-
+## 18. License
+See `LICENSE` in the repository root.
 ---
 ## 6. Environment Variables
 Typical variables (define in `.env` files or docker-compose):
