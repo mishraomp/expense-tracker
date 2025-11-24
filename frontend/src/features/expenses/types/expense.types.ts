@@ -23,6 +23,7 @@ export interface Expense {
   updatedAt: string;
   category?: Category;
   subcategory?: { id: string; name: string };
+  attachmentCount?: number; // number of active attachments
 }
 
 export interface ExpenseListResponse {

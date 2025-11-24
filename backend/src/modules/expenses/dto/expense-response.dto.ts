@@ -23,9 +23,10 @@ export class ExpenseResponseDto {
   updatedAt: Date;
   category?: CategoryResponseDto;
   subcategory?: { id: string; name: string };
+  attachmentCount?: number; // number of active attachments
 
   static fromEntity(
-    expense: Expense & { category?: Category; subcategory?: Subcategory },
+    expense: Expense & { category?: Category; subcategory?: Subcategory; attachmentCount?: number },
   ): ExpenseResponseDto {
     return {
       id: expense.id,
@@ -55,6 +56,7 @@ export class ExpenseResponseDto {
             name: expense.subcategory.name,
           }
         : undefined,
+      attachmentCount: (expense as any).attachmentCount,
     };
   }
 }

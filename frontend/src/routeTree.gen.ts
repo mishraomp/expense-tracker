@@ -13,8 +13,10 @@ import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as IncomesRouteImport } from './routes/incomes'
 import { Route as ImportRouteImport } from './routes/import'
 import { Route as ExpensesRouteImport } from './routes/expenses'
+import { Route as DriveCallbackRouteImport } from './routes/drive-callback'
 import { Route as CategoriesRouteImport } from './routes/categories'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as OauthCallbackRouteImport } from './routes/oauth/callback'
 
 const ReportsRoute = ReportsRouteImport.update({
   id: '/reports',
@@ -36,6 +38,11 @@ const ExpensesRoute = ExpensesRouteImport.update({
   path: '/expenses',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DriveCallbackRoute = DriveCallbackRouteImport.update({
+  id: '/drive-callback',
+  path: '/drive-callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CategoriesRoute = CategoriesRouteImport.update({
   id: '/categories',
   path: '/categories',
@@ -46,60 +53,85 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OauthCallbackRoute = OauthCallbackRouteImport.update({
+  id: '/oauth/callback',
+  path: '/oauth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/categories': typeof CategoriesRoute
+  '/drive-callback': typeof DriveCallbackRoute
   '/expenses': typeof ExpensesRoute
   '/import': typeof ImportRoute
   '/incomes': typeof IncomesRoute
   '/reports': typeof ReportsRoute
+  '/oauth/callback': typeof OauthCallbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/categories': typeof CategoriesRoute
+  '/drive-callback': typeof DriveCallbackRoute
   '/expenses': typeof ExpensesRoute
   '/import': typeof ImportRoute
   '/incomes': typeof IncomesRoute
   '/reports': typeof ReportsRoute
+  '/oauth/callback': typeof OauthCallbackRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/categories': typeof CategoriesRoute
+  '/drive-callback': typeof DriveCallbackRoute
   '/expenses': typeof ExpensesRoute
   '/import': typeof ImportRoute
   '/incomes': typeof IncomesRoute
   '/reports': typeof ReportsRoute
+  '/oauth/callback': typeof OauthCallbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/categories'
+    | '/drive-callback'
     | '/expenses'
     | '/import'
     | '/incomes'
     | '/reports'
+    | '/oauth/callback'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/categories' | '/expenses' | '/import' | '/incomes' | '/reports'
+  to:
+    | '/'
+    | '/categories'
+    | '/drive-callback'
+    | '/expenses'
+    | '/import'
+    | '/incomes'
+    | '/reports'
+    | '/oauth/callback'
   id:
     | '__root__'
     | '/'
     | '/categories'
+    | '/drive-callback'
     | '/expenses'
     | '/import'
     | '/incomes'
     | '/reports'
+    | '/oauth/callback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CategoriesRoute: typeof CategoriesRoute
+  DriveCallbackRoute: typeof DriveCallbackRoute
   ExpensesRoute: typeof ExpensesRoute
   ImportRoute: typeof ImportRoute
   IncomesRoute: typeof IncomesRoute
   ReportsRoute: typeof ReportsRoute
+  OauthCallbackRoute: typeof OauthCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -132,6 +164,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ExpensesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/drive-callback': {
+      id: '/drive-callback'
+      path: '/drive-callback'
+      fullPath: '/drive-callback'
+      preLoaderRoute: typeof DriveCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/categories': {
       id: '/categories'
       path: '/categories'
@@ -146,16 +185,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/oauth/callback': {
+      id: '/oauth/callback'
+      path: '/oauth/callback'
+      fullPath: '/oauth/callback'
+      preLoaderRoute: typeof OauthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CategoriesRoute: CategoriesRoute,
+  DriveCallbackRoute: DriveCallbackRoute,
   ExpensesRoute: ExpensesRoute,
   ImportRoute: ImportRoute,
   IncomesRoute: IncomesRoute,
   ReportsRoute: ReportsRoute,
+  OauthCallbackRoute: OauthCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

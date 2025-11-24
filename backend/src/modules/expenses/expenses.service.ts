@@ -5,10 +5,14 @@ import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { ExpenseResponseDto, ExpenseListResponseDto } from './dto/expense-response.dto';
 import { ExpenseListQueryDto } from './dto/expense-list-query.dto';
 import { Decimal } from '@prisma/client/runtime/client.js';
+import { AttachmentsService } from '../attachments/attachments.service';
 
 @Injectable()
 export class ExpensesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly attachmentsService: AttachmentsService,
+  ) {}
 
   async create(userId: string, createExpenseDto: CreateExpenseDto): Promise<ExpenseResponseDto> {
     // Validate amount is positive
@@ -176,12 +180,31 @@ export class ExpensesService {
       this.prisma.expense.aggregate({ where, _sum: { amount: true } }),
     ]);
 
+    // Fetch attachment counts for these expenses (ACTIVE only)
+    const expenseIds = expenses.map((e) => e.id);
+    let countsMap: Record<string, number> = {};
+    if (expenseIds.length) {
+      const activeAttachments = await this.prisma.attachments.findMany({
+        where: { linked_expense_id: { in: expenseIds }, status: 'ACTIVE' },
+        select: { linked_expense_id: true },
+      });
+      for (const att of activeAttachments) {
+        if (att.linked_expense_id) {
+          countsMap[att.linked_expense_id] = (countsMap[att.linked_expense_id] || 0) + 1;
+        }
+      }
+    }
+
     const totalPages = Math.ceil(total / pageSize);
 
     const totalAmount = (sumAgg._sum.amount ?? new Decimal(0)).toNumber();
 
     return {
-      data: expenses.map(ExpenseResponseDto.fromEntity),
+      data: expenses.map((exp) =>
+        ExpenseResponseDto.fromEntity(
+          Object.assign(exp, { attachmentCount: countsMap[exp.id] || 0 }),
+        ),
+      ),
       pagination: { page, limit: pageSize, total, totalPages },
       summary: { totalAmount, count: total },
     };
@@ -197,7 +220,13 @@ export class ExpensesService {
       throw new NotFoundException(`Expense with ID ${id} not found`);
     }
 
-    return ExpenseResponseDto.fromEntity(expense);
+    const response = ExpenseResponseDto.fromEntity(expense);
+
+    // Include attachments in detail response
+    const attachments = await this.attachmentsService.listAttachments('expense', id);
+    (response as any).attachments = attachments;
+
+    return response;
   }
 
   async update(

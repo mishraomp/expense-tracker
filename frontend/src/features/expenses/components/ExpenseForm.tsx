@@ -1,9 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import type { CreateExpenseInput, Expense } from '../types/expense.types';
 import { useCreateExpense, useUpdateExpense } from '../api/expenseApi';
 import { useCategories } from '../api/categoryApi';
 import SubcategorySelector from '../../subcategories/components/SubcategorySelector';
+import UploadWidget from '../../attachments/UploadWidget';
+import { useDriveStore } from '@/stores/drive';
+import AttachmentList from '../../attachments/AttachmentList';
+import { listAttachments } from '@/services/api';
 
 interface ExpenseFormProps {
   expense?: Expense | null;
@@ -19,6 +23,7 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
     reset,
     watch,
     setValue,
+    getValues,
   } = useForm<CreateExpenseInput>({
     // Use local date (YYYY-MM-DD) instead of UTC to avoid off-by-one
     defaultValues: {
@@ -37,8 +42,53 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
   const { data: categories, isLoading: categoriesLoading } = useCategories();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
+  const [savedExpenseId, setSavedExpenseId] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<
+    Array<{
+      id: string;
+      originalFilename: string;
+      mimeType: string;
+      sizeBytes: number;
+      webViewLink: string;
+      status: string;
+      createdAt: string;
+    }>
+  >([]);
+  const [attachmentsLoading, setAttachmentsLoading] = useState(false);
+  const [attachmentsError, setAttachmentsError] = useState<string | null>(null);
+
+  const fetchAttachments = useCallback(async () => {
+    if (!savedExpenseId) return;
+    setAttachmentsLoading(true);
+    setAttachmentsError(null);
+    try {
+      const resp = await listAttachments('expense', savedExpenseId);
+      // API returns array directly
+      setAttachments(resp.data);
+    } catch (e) {
+      const err = e as Error & { response?: { data?: { message?: string } } };
+      setAttachmentsError(
+        err.response?.data?.message || err.message || 'Failed to load attachments',
+      );
+    } finally {
+      setAttachmentsLoading(false);
+    }
+  }, [savedExpenseId]);
 
   const isEditMode = !!expense;
+  // Drive OAuth state
+  const {
+    connected: driveConnected,
+    connecting: driveConnecting,
+    error: driveError,
+    checkStatus: checkDriveStatus,
+    beginConnect: beginDriveConnect,
+    revoke: revokeDrive,
+  } = useDriveStore();
+
+  useEffect(() => {
+    void checkDriveStatus();
+  }, [checkDriveStatus]);
 
   // Reset form when expense prop changes (edit mode)
   useEffect(() => {
@@ -51,6 +101,7 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
         description: expense.description || '',
       });
       setIsRecurring(false);
+      setSavedExpenseId(expense.id); // Show upload section for existing expense
     } else {
       const d = new Date();
       const y = d.getFullYear();
@@ -58,8 +109,14 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
       const day = String(d.getDate()).padStart(2, '0');
       reset({ date: `${y}-${m}-${day}` });
       setIsRecurring(false);
+      setSavedExpenseId(null);
     }
   }, [expense, reset]);
+
+  // Fetch attachments whenever we enter edit mode or a new expense is created/saved
+  useEffect(() => {
+    void fetchAttachments();
+  }, [fetchAttachments]);
 
   const selectedCategoryId = watch('categoryId');
   const previousCategoryIdRef = useRef<string | undefined>(undefined);
@@ -80,6 +137,7 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
     try {
       if (isEditMode) {
         await updateExpense.mutateAsync({ id: expense.id, data });
+        setSavedExpenseId(expense.id);
       } else {
         const submitData = {
           ...data,
@@ -87,10 +145,10 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
           recurrenceFrequency: isRecurring ? data.recurrenceFrequency : undefined,
           numberOfRecurrences: isRecurring ? data.numberOfRecurrences : undefined,
         };
-        await createExpense.mutateAsync(submitData);
+        const result = await createExpense.mutateAsync(submitData);
+        setSavedExpenseId(result.id); // Show upload section after successful create
       }
-      reset();
-      setIsRecurring(false);
+      // Don't reset form here - keep it populated to allow uploads
       onSuccess?.();
       // Error toast is handled in the mutation
     } finally {
@@ -100,6 +158,7 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
 
   const handleCancel = () => {
     reset();
+    setSavedExpenseId(null);
     onCancel?.();
   };
 
@@ -317,6 +376,103 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
             </div>
           </div>
         </form>
+
+        <div className="mt-3 pt-3 border-top">
+          <h6 className="mb-2">Attachments</h6>
+          <div className="mb-2" aria-live="polite">
+            {driveConnected ? (
+              <div className="d-flex align-items-center gap-2">
+                <span className="badge bg-success" title="Google Drive is connected">
+                  Drive Connected
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-outline-danger btn-sm"
+                  onClick={() => revokeDrive()}
+                  disabled={driveConnecting}
+                >
+                  Disconnect
+                </button>
+              </div>
+            ) : (
+              <div className="d-flex align-items-center gap-2">
+                <span className="badge bg-secondary" title="Google Drive not connected">
+                  Drive Not Connected
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-outline-primary btn-sm"
+                  onClick={() => beginDriveConnect()}
+                  disabled={driveConnecting}
+                >
+                  {driveConnecting ? 'Connecting...' : 'Connect Google Drive'}
+                </button>
+                {driveError && (
+                  <small className="text-danger" role="alert">
+                    {driveError}
+                  </small>
+                )}
+              </div>
+            )}
+          </div>
+          {!savedExpenseId && (
+            <div className="alert alert-info py-2 mb-2" role="alert">
+              <small>Save the expense first to enable attachments.</small>
+            </div>
+          )}
+          <UploadWidget
+            recordType="expense"
+            recordId={savedExpenseId || undefined}
+            getOrCreateRecordId={async () => {
+              // Attempt to create the expense if not yet saved using current form values
+              const values = getValues();
+              if (!values.amount || !values.date || !values.categoryId) {
+                throw new Error(
+                  'Fill required fields (amount, date, category) before adding attachments',
+                );
+              }
+              if (!savedExpenseId) {
+                const submitData = {
+                  ...values,
+                  recurring: isRecurring,
+                  recurrenceFrequency: isRecurring ? values.recurrenceFrequency : undefined,
+                  numberOfRecurrences: isRecurring ? values.numberOfRecurrences : undefined,
+                } as CreateExpenseInput;
+                const result = await createExpense.mutateAsync(submitData);
+                setSavedExpenseId(result.id);
+                // Newly created -> fetch attachments (will be empty but sets baseline)
+                void fetchAttachments();
+                return result.id;
+              }
+              return savedExpenseId;
+            }}
+            onUploadComplete={() => {
+              // Refresh list after successful uploads
+              void fetchAttachments();
+            }}
+          />
+          {savedExpenseId && (
+            <div className="mt-3">
+              {attachmentsLoading && (
+                <div role="status" className="small text-muted">
+                  <span className="spinner-border spinner-border-sm me-1" /> Loading attachments...
+                </div>
+              )}
+              {attachmentsError && (
+                <div className="alert alert-danger py-2" role="alert">
+                  {attachmentsError}
+                </div>
+              )}
+              {!attachmentsLoading && !attachmentsError && (
+                <AttachmentList
+                  attachments={attachments}
+                  onRefresh={() => fetchAttachments()}
+                  showActions
+                />
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

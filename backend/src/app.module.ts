@@ -11,6 +11,7 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { IncomesModule } from './modules/incomes/incomes.module';
 import { KeycloakAuthGuard } from './common/guards/keycloak-auth.guard';
 import { ExportModule } from './modules/export/export.module';
+import { AttachmentsModule } from './modules/attachments/attachments.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { ExportModule } from './modules/export/export.module';
     ReportsModule,
     IncomesModule,
     ExportModule,
+    AttachmentsModule,
   ],
   controllers: [],
   providers: [

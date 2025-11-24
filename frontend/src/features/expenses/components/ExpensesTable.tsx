@@ -30,6 +30,14 @@ export default function ExpensesTable({ filters = {}, onEdit }: ExpensesTablePro
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
 
+  // Reset pagination to page 0 when filters change
+  const filterKey = JSON.stringify(filters);
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+    setPrevFilterKey(filterKey);
+  }
+
   const sortField = sorting.length > 0 ? sorting[0].id : 'date';
   const sortDirection = sorting.length > 0 && !sorting[0].desc ? 'asc' : 'desc';
 
@@ -91,11 +99,62 @@ export default function ExpensesTable({ filters = {}, onEdit }: ExpensesTablePro
         id: 'category',
         header: 'Category',
         cell: ({ row }) => {
-          const categoryName = row.original.category?.name || 'N/A';
-          const colorCode = row.original.category?.colorCode;
+          const category = row.original.category;
+          const categoryName = category?.name || 'N/A';
+          const colorCode = category?.colorCode;
           const bgColor = colorCode || '#6c757d'; // default gray
+          const rawIcon = (category?.icon || '').trim();
+
+          const renderIcon = () => {
+            if (!rawIcon) return null;
+            // URL image
+            if (/^https?:\/\//.test(rawIcon)) {
+              return (
+                <img
+                  src={rawIcon}
+                  alt="icon"
+                  style={{ width: '1em', height: '1em', verticalAlign: 'middle' }}
+                />
+              );
+            }
+            // Bootstrap Icons class name e.g. 'bi-bank'
+            if (/^bi-[a-z0-9-]+$/i.test(rawIcon)) {
+              return <i className={`bi ${rawIcon}`} aria-hidden="true" />;
+            }
+            // Use DOM decoding for any HTML entity
+            if (rawIcon.startsWith('&')) {
+              const textarea = document.createElement('textarea');
+              textarea.innerHTML = rawIcon.endsWith(';') ? rawIcon : rawIcon + ';';
+              const decoded = textarea.value;
+              // If it looks like private use (Fxxx), apply bootstrap-icons font
+              const codePoint = decoded.codePointAt(0) || 0;
+              const isPrivateUse = codePoint >= 0xe000 && codePoint <= 0xf8ff;
+              return (
+                <span
+                  style={{
+                    fontFamily: isPrivateUse ? 'bootstrap-icons' : undefined,
+                    display: 'inline-block',
+                    lineHeight: 1,
+                  }}
+                >
+                  {decoded}
+                </span>
+              );
+            }
+            // Otherwise assume already a visible character / emoji / short text
+            return rawIcon;
+          };
+
           return (
-            <span className="badge text-white" style={{ backgroundColor: bgColor }}>
+            <span
+              className="badge text-white d-flex align-items-center gap-1"
+              style={{ backgroundColor: bgColor }}
+            >
+              {rawIcon && (
+                <span className="me-1" style={{ fontSize: '1.1em', lineHeight: 1 }}>
+                  {renderIcon()}
+                </span>
+              )}
               {categoryName}
             </span>
           );
@@ -122,6 +181,19 @@ export default function ExpensesTable({ filters = {}, onEdit }: ExpensesTablePro
         header: 'Description',
         cell: (info) => info.getValue() || '-',
         size: 250,
+      }),
+      columnHelper.accessor('attachmentCount', {
+        header: 'Att',
+        cell: (info) => {
+          const count = info.getValue() as number | undefined;
+          return (
+            <span className="badge bg-light text-dark" title="Active attachments">
+              <i className="bi bi-paperclip me-1" aria-hidden="true"></i>
+              {count || 0}
+            </span>
+          );
+        },
+        size: 70,
       }),
       columnHelper.display({
         id: 'actions',

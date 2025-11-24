@@ -1,4 +1,5 @@
 import { Logger, ValidationPipe, VersioningType } from '@nestjs/common';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -11,6 +12,9 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
   );
+
+  // Global logging interceptor (captures all HTTP requests)
+  app.useGlobalInterceptors(new LoggingInterceptor());
 
   // Enable CORS
   app.enableCors({ origin: process.env.CORS_ORIGIN || 'http://localhost:5173', credentials: true });

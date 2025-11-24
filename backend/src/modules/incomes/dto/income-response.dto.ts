@@ -12,8 +12,9 @@ export class IncomeResponseDto {
   isRecurring: boolean;
   createdAt: Date;
   updatedAt: Date;
+  attachmentCount?: number; // number of ACTIVE attachments linked to this income
 
-  static fromPrisma(income: Income): IncomeResponseDto {
+  static fromPrisma(income: Income, attachmentCount?: number): IncomeResponseDto {
     return {
       id: income.id,
       userId: income.userId,
@@ -26,6 +27,7 @@ export class IncomeResponseDto {
       isRecurring: income.isRecurring,
       createdAt: income.createdAt,
       updatedAt: income.updatedAt,
+      attachmentCount,
     };
   }
 }

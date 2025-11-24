@@ -23,6 +23,7 @@
     "axios": "^1.13.2",
     "bootstrap": "^5.3.8",
     "bootswatch": "^5.3.8",
+    "bootstrap-icons": "^1.11.3",
     "d3-array": "^3.2.4",
     "d3-axis": "^3.0.0",
     "d3-scale": "^4.0.2",
