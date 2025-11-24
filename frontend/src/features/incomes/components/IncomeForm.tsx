@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import type { CreateIncomeRequest, IncomeSource, IncomeFrequency } from '../types/income.types';
 import { toYYYYMMDD } from '@/services/date';
+import UploadWidget from '../../attachments/UploadWidget';
 
 interface IncomeFormProps {
-  onSubmit: (data: CreateIncomeRequest) => void;
+  onSubmit: (data: CreateIncomeRequest) => Promise<{ id: string }>;
   onCancel: () => void;
   initialData?: Partial<CreateIncomeRequest>;
 }
@@ -19,10 +20,12 @@ export function IncomeForm({ onSubmit, onCancel, initialData }: IncomeFormProps)
     isRecurring: initialData?.isRecurring || false,
     numberOfRecurrences: initialData?.numberOfRecurrences || 12,
   });
+  const [savedIncomeId, setSavedIncomeId] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(formData);
+    const result = await onSubmit(formData);
+    setSavedIncomeId(result.id);
   };
 
   return (
@@ -168,6 +171,19 @@ export function IncomeForm({ onSubmit, onCancel, initialData }: IncomeFormProps)
           Cancel
         </button>
       </div>
+
+      {savedIncomeId && (
+        <div className="mt-3 pt-3 border-top">
+          <h6 className="mb-2">Attachments</h6>
+          <UploadWidget
+            recordType="income"
+            recordId={savedIncomeId}
+            onUploadComplete={() => {
+              // Optionally refresh income data or show success message
+            }}
+          />
+        </div>
+      )}
     </form>
   );
 }

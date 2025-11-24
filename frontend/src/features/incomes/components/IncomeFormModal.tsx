@@ -4,7 +4,7 @@ import { IncomeForm } from './IncomeForm';
 interface IncomeFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: CreateIncomeRequest) => void;
+  onSubmit: (data: CreateIncomeRequest) => Promise<{ id: string }>;
   editingIncome?: Income | null;
 }
 
@@ -16,9 +16,10 @@ export function IncomeFormModal({
 }: IncomeFormModalProps) {
   if (!isOpen) return null;
 
-  const handleSubmit = (data: CreateIncomeRequest) => {
-    onSubmit(data);
+  const handleSubmit = async (data: CreateIncomeRequest) => {
+    const result = await onSubmit(data);
     onClose();
+    return result;
   };
 
   return (

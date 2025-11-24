@@ -5,6 +5,7 @@ import * as ReactDOM from 'react-dom/client';
 
 // Import bootstrap styles
 import '@/scss/styles.scss';
+import 'bootstrap-icons/font/bootstrap-icons.css';
 
 // Import the generated route tree
 import { routeTree } from './routeTree.gen';

@@ -13,9 +13,10 @@ export function IncomesPage() {
   const updateMutation = useUpdateIncome();
   const deleteMutation = useDeleteIncome();
 
-  const handleCreate = (data: CreateIncomeRequest) => {
-    createMutation.mutate(data);
+  const handleCreate = async (data: CreateIncomeRequest) => {
+    const result = await createMutation.mutateAsync(data);
     setIsModalOpen(false);
+    return result;
   };
 
   const handleEdit = (income: Income) => {
@@ -23,12 +24,14 @@ export function IncomesPage() {
     setIsModalOpen(true);
   };
 
-  const handleUpdate = (data: CreateIncomeRequest) => {
+  const handleUpdate = async (data: CreateIncomeRequest) => {
     if (editingIncome) {
-      updateMutation.mutate({ id: editingIncome.id, data });
+      await updateMutation.mutateAsync({ id: editingIncome.id, data });
       setEditingIncome(null);
       setIsModalOpen(false);
+      return { id: editingIncome.id };
     }
+    return { id: '' };
   };
 
   const handleDelete = (id: string) => {

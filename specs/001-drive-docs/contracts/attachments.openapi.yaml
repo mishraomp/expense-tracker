@@ -1,0 +1,238 @@
+openapi: 3.1.0
+info:
+  title: Attachments API
+  version: 0.1.0
+paths:
+  /api/attachments:
+    post:
+      summary: Upload attachment for expense or income
+      operationId: uploadAttachment
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                recordType:
+                  type: string
+                  enum: [expense, income]
+                recordId:
+                  type: string
+                checksum:
+                  type: string
+              required: [file, recordType, recordId]
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Attachment'
+        '400': { description: Invalid input }
+        '401': { description: Unauthorized }
+        '413': { description: File too large }
+  /api/records/{recordType}/{recordId}/attachments:
+    get:
+      summary: List attachments for a record
+      operationId: listRecordAttachments
+      parameters:
+        - name: recordType
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [expense, income]
+        - name: recordId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Attachment'
+        '401': { description: Unauthorized }
+  /api/attachments/{attachmentId}:
+    delete:
+      summary: Soft-delete an attachment
+      operationId: removeAttachment
+      parameters:
+        - name: attachmentId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204': { description: No Content }
+        '404': { description: Not Found }
+    put:
+      summary: Replace an attachment (upload new file)
+      operationId: replaceAttachment
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                checksum:
+                  type: string
+              required: [file]
+      parameters:
+        - name: attachmentId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Replaced
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Attachment'
+  /api/attachments/orphans:
+    get:
+      summary: List orphan Drive files
+      operationId: listOrphans
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orphans:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Orphan'
+  /api/attachments/bulk:
+    post:
+      summary: Start bulk upload job
+      operationId: startBulkUpload
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                recordType:
+                  type: string
+                  enum: [expense, income]
+                  description: Target record type for all files
+                recordIds:
+                  type: array
+                  items:
+                    type: string
+                  description: Optional mapping recordIds (length must match files if provided)
+              required: [files, recordType]
+      responses:
+        '202':
+          description: Accepted - job started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobId: { type: string }
+                  status: { type: string, enum: [pending, running] }
+                  totalFiles: { type: integer }
+        '400': { description: Invalid input }
+        '401': { description: Unauthorized }
+  /api/attachments/bulk/{jobId}:
+    get:
+      summary: Get bulk job status
+      operationId: getBulkJobStatus
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkImportJob'
+        '404': { description: Job not found }
+    patch:
+      summary: Cancel bulk job
+      operationId: cancelBulkJob
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Job canceled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkImportJob'
+        '404': { description: Job not found }
+components:
+  schemas:
+    Attachment:
+      type: object
+      properties:
+        id: { type: string }
+        driveFileId: { type: string }
+        recordType: { type: string, enum: [expense, income] }
+        recordId: { type: string }
+        mimeType: { type: string }
+        sizeBytes: { type: integer }
+        originalFilename: { type: string }
+        checksum: { type: string }
+        webViewLink: { type: string }
+        status: { type: string, enum: [active, removed, orphan] }
+        createdAt: { type: string, format: date-time }
+      required: [id, driveFileId, recordType, recordId, mimeType, sizeBytes, originalFilename, checksum, webViewLink, status, createdAt]
+    Orphan:
+      type: object
+      properties:
+        driveFileId: { type: string }
+        originalFilename: { type: string }
+        sizeBytes: { type: integer }
+        detectedAt: { type: string, format: date-time }
+      required: [driveFileId, originalFilename, sizeBytes, detectedAt]
+    BulkImportJob:
+      type: object
+      properties:
+        id: { type: string }
+        initiatedByUserId: { type: string }
+        totalFiles: { type: integer }
+        uploadedCount: { type: integer }
+        duplicateCount: { type: integer }
+        errorCount: { type: integer }
+        skippedCount: { type: integer }
+        status: { type: string, enum: [pending, running, completed, canceled, failed] }
+        startedAt: { type: string, format: date-time }
+        completedAt: { type: string, format: date-time }
+      required: [id, initiatedByUserId, totalFiles, status]
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+security:
+  - bearerAuth: []
+

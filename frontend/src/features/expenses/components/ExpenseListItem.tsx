@@ -1,5 +1,7 @@
 import type { Expense } from '../types/expense.types';
 import { toYYYYMMDD } from '@/services/date';
+import { useState } from 'react';
+import ManageAttachmentsModal from '../../attachments/ManageAttachmentsModal';
 
 interface ExpenseListItemProps {
   expense: Expense;
@@ -8,6 +10,7 @@ interface ExpenseListItemProps {
 }
 
 export default function ExpenseListItem({ expense, onEdit, onDelete }: ExpenseListItemProps) {
+  const [showAttachments, setShowAttachments] = useState(false);
   const handleDelete = () => {
     // Trigger parent to open confirm modal
     onDelete(expense.id);
@@ -53,6 +56,20 @@ export default function ExpenseListItem({ expense, onEdit, onDelete }: ExpenseLi
           </button>
           <button
             type="button"
+            className="btn btn-outline-primary"
+            onClick={() => setShowAttachments(true)}
+            aria-label={`Manage attachments for expense from ${formatDate(expense.date)}`}
+          >
+            <i className="bi bi-paperclip me-1" aria-hidden="true"></i>
+            Attachments
+            {typeof expense.attachmentCount === 'number' && (
+              <span className="badge bg-secondary ms-1" aria-label="Attachment count">
+                {expense.attachmentCount}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
             className="btn btn-outline-danger"
             onClick={handleDelete}
             aria-label={`Delete expense from ${formatDate(expense.date)}`}
@@ -60,6 +77,14 @@ export default function ExpenseListItem({ expense, onEdit, onDelete }: ExpenseLi
             <i className="bi bi-trash"></i> Delete
           </button>
         </div>
+        {showAttachments && (
+          <ManageAttachmentsModal
+            recordType="expense"
+            recordId={expense.id}
+            isOpen={showAttachments}
+            onClose={() => setShowAttachments(false)}
+          />
+        )}
       </td>
     </tr>
   );
