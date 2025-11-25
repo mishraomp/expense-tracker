@@ -8,10 +8,12 @@ interface Props {
   disabled?: boolean;
   /** Size variant: 'sm' | 'default' */
   size?: 'sm' | 'default';
-  /** Label text (default: 'Subcategory') */
+  /** Label text (default: 'Subcategory'). Set to empty string to hide label */
   label?: string;
   /** Placeholder for empty option (default: 'None') */
   placeholder?: string;
+  /** Hide the label entirely (default: false) */
+  hideLabel?: boolean;
 }
 
 export default function SubcategorySelector({
@@ -22,6 +24,7 @@ export default function SubcategorySelector({
   size = 'default',
   label = 'Subcategory',
   placeholder = 'None',
+  hideLabel = false,
 }: Props) {
   const { data: subcategories, isLoading } = useSubcategories(categoryId);
 
@@ -39,12 +42,15 @@ export default function SubcategorySelector({
   if (!categoryId) return null;
 
   const selectClass = size === 'sm' ? 'form-select form-select-sm' : 'form-select';
+  const showLabel = !hideLabel && label;
 
   return (
     <div>
-      <label htmlFor="subcategoryId" className="form-label small mb-1">
-        {label}
-      </label>
+      {showLabel && (
+        <label htmlFor="subcategoryId" className="form-label small mb-1">
+          {label}
+        </label>
+      )}
       <select
         id="subcategoryId"
         className={selectClass}

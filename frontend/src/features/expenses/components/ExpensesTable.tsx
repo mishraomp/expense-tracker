@@ -256,6 +256,24 @@ export default function ExpensesTable({
         },
         size: 70,
       }),
+      columnHelper.accessor((row) => row.itemCount ?? row.items?.length ?? 0, {
+        id: 'itemCount',
+        header: 'Items',
+        cell: ({ row }) => {
+          // Use itemCount from API or fall back to items array length
+          const count = row.original.itemCount ?? row.original.items?.length ?? 0;
+          if (count === 0) {
+            return <span className="text-muted">-</span>;
+          }
+          return (
+            <span className="badge bg-info text-dark" title={`${count} line item(s)`}>
+              <i className="bi bi-list-ul me-1" aria-hidden="true"></i>
+              {count}
+            </span>
+          );
+        },
+        size: 70,
+      }),
       columnHelper.display({
         id: 'actions',
         header: 'Actions',

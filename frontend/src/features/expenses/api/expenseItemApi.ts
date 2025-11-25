@@ -197,6 +197,37 @@ export const useDeleteExpenseItem = () => {
     }): Promise<void> => {
       await api.delete(`/expenses/${expenseId}/items/${itemId}`);
     },
+    onMutate: async ({ expenseId, itemId }) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({
+        queryKey: expenseItemKeys.list(expenseId),
+      });
+
+      // Snapshot previous value
+      const previousItems = queryClient.getQueryData<ExpenseItemListResponse>(
+        expenseItemKeys.list(expenseId),
+      );
+
+      // Optimistically remove item from list
+      if (previousItems) {
+        queryClient.setQueryData(
+          expenseItemKeys.list(expenseId),
+          (old: ExpenseItemListResponse) => ({
+            ...old,
+            data: old.data.filter((item) => item.id !== itemId),
+            summary: {
+              ...old.summary,
+              itemCount: old.summary.itemCount - 1,
+              totalAmount:
+                old.summary.totalAmount -
+                (old.data.find((item) => item.id === itemId)?.amount || 0),
+            },
+          }),
+        );
+      }
+
+      return { previousItems };
+    },
     onSuccess: (_data, variables) => {
       // Invalidate items list and parent expense detail
       queryClient.invalidateQueries({
@@ -207,7 +238,11 @@ export const useDeleteExpenseItem = () => {
       });
       toast.success('Item deleted successfully');
     },
-    onError: (error: any) => {
+    onError: (error: any, variables, context) => {
+      // Rollback on error
+      if (context?.previousItems) {
+        queryClient.setQueryData(expenseItemKeys.list(variables.expenseId), context.previousItems);
+      }
       const message = error.response?.data?.message || 'Failed to delete item';
       toast.error(message);
     },

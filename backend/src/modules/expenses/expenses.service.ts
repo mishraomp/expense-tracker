@@ -267,21 +267,40 @@ export class ExpensesService {
     // Optimization: Use groupBy for more efficient counting
     const expenseIds = expenses.map((e) => e.id);
     let countsMap: Record<string, number> = {};
+    let itemCountsMap: Record<string, number> = {};
     if (expenseIds.length) {
-      const attachmentCounts = await this.prisma.attachments.groupBy({
-        by: ['linked_expense_id'],
-        where: {
-          linked_expense_id: { in: expenseIds },
-          status: 'ACTIVE',
-        },
-        _count: {
-          id: true,
-        },
-      });
+      const [attachmentCounts, itemCounts] = await Promise.all([
+        this.prisma.attachments.groupBy({
+          by: ['linked_expense_id'],
+          where: {
+            linked_expense_id: { in: expenseIds },
+            status: 'ACTIVE',
+          },
+          _count: {
+            id: true,
+          },
+        }),
+        this.prisma.expenseItem.groupBy({
+          by: ['expenseId'],
+          where: {
+            expenseId: { in: expenseIds },
+            deletedAt: null,
+          },
+          _count: {
+            id: true,
+          },
+        }),
+      ]);
 
       for (const count of attachmentCounts) {
         if (count.linked_expense_id) {
           countsMap[count.linked_expense_id] = count._count.id;
+        }
+      }
+
+      for (const count of itemCounts) {
+        if (count.expenseId) {
+          itemCountsMap[count.expenseId] = count._count.id;
         }
       }
     }
@@ -293,7 +312,10 @@ export class ExpensesService {
     return {
       data: expenses.map((exp) =>
         ExpenseResponseDto.fromEntity(
-          Object.assign(exp, { attachmentCount: countsMap[exp.id] || 0 }),
+          Object.assign(exp, {
+            attachmentCount: countsMap[exp.id] || 0,
+            itemCount: itemCountsMap[exp.id] || 0,
+          }),
         ),
       ),
       pagination: { page, limit: pageSize, total, totalPages },

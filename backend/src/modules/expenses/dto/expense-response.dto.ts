@@ -33,6 +33,7 @@ export class ExpenseResponseDto {
       category?: Category;
       subcategory?: Subcategory;
       attachmentCount?: number;
+      itemCount?: number;
       items?: (ExpenseItem & { category?: Category | null; subcategory?: Subcategory | null })[];
     },
   ): ExpenseResponseDto {
@@ -66,7 +67,8 @@ export class ExpenseResponseDto {
         : undefined,
       attachmentCount: (expense as any).attachmentCount,
       items: expense.items?.map((item) => ExpenseItemResponseDto.fromEntity(item)),
-      itemCount: expense.items?.length,
+      // Use itemCount from aggregation if provided, otherwise count from items array
+      itemCount: (expense as any).itemCount ?? expense.items?.length,
     };
   }
 }

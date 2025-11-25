@@ -11,6 +11,7 @@ import AttachmentList from '../../attachments/AttachmentList';
 import { listAttachments } from '@/services/api';
 import ExpenseItemForm from './ExpenseItemForm';
 import ExpenseItemList from './ExpenseItemList';
+import ExpenseItemsManager from './ExpenseItemsManager';
 
 interface ExpenseFormProps {
   expense?: Expense | null;
@@ -289,7 +290,7 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
               </div>
             </div>
 
-            {/* Line Items Section - Only show for new expenses */}
+            {/* Line Items Section - For new expenses: inline form, for edit mode: manager component */}
             {!isEditMode && (
               <div className="col-12">
                 <div className="d-flex align-items-center justify-content-between mb-2">
@@ -324,6 +325,18 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
                     />
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Line Items Section - Edit mode uses ExpenseItemsManager with API integration */}
+            {isEditMode && expense && (
+              <div className="col-12">
+                <ExpenseItemsManager
+                  expenseId={expense.id}
+                  categories={categories || []}
+                  defaultCategoryId={selectedCategoryId}
+                  defaultSubcategoryId={watch('subcategoryId') || undefined}
+                />
               </div>
             )}
 
