@@ -81,7 +81,7 @@ function New-RandomExpense {
 # Check if backend is accessible
 Write-Host "Checking backend connectivity..." -ForegroundColor Yellow
 try {
-    $healthCheck = Invoke-RestMethod -Uri "$BaseUrl/health" -Method Get -TimeoutSec 5
+    $healthCheck = Invoke-RestMethod -Uri "$BaseUrl/healthz" -Method Get -TimeoutSec 5
     Write-Host "✓ Backend is accessible" -ForegroundColor Green
 }
 catch {

@@ -482,7 +482,7 @@ export class ExpensesService {
         }
 
         // Check for duplicate using pre-built set
-        const duplicateKey = `${expenseDto.amount}_${new Date(expenseDto.date).toISOString()}_${expenseDto.description || 'null'}`;
+        const duplicateKey = `${expenseDto.amount}_${new Date(expenseDto.date).toISOString()}_${expenseDto.description === null || expenseDto.description === undefined ? 'null' : expenseDto.description}`;
         if (duplicateKeys.has(duplicateKey)) {
           duplicates.push({
             index: i,

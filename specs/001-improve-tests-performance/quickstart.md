@@ -20,12 +20,9 @@ Load tests:
 ```powershell
 # Reports baseline (Docker) — defaults to localhost:3000
 docker run -it --network host -e BASE_URL=http://localhost:3000 -v "${PWD}/load-tests:/load-tests" loadimpact/k6:0.43.0 run /load-tests/reports.js
+```
 
 PowerShell helper (Windows):
-```powershell
-./load-tests/run-k6.ps1 -Script 'reports.js' -BaseUrl 'http://localhost:3000' -Vus 10 -Duration '30s'
-```
-```
 
 Notes:
  - Adjust `k6` VUs and duration via env vars: `K6_VUS=50`, `K6_DURATION='120s'`.
