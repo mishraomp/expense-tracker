@@ -1,0 +1,9 @@
+# This directory stores k6 load test results for baseline comparison
+# 
+# Files in this directory are not committed to git (see .gitignore)
+# Store baseline results with descriptive names:
+#   - baseline-YYYYMMDD-HHmmss.json
+#   - baseline-after-optimization-YYYYMMDD.json
+#   - baseline-v1.2.0.json
+#
+# Use compare-results.ts to compare baselines

@@ -1,0 +1,35 @@
+name: k6 Nightly Performance
+
+on:
+  schedule:
+    - cron: "0 2 * * *" # daily at 02:00 UTC
+  workflow_dispatch: {}
+
+jobs:
+  k6-nightly:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Compose
+        run: docker compose up -d --build
+
+      - name: Wait for backend to be ready
+        run: |
+          for i in {1..30}; do
+            if curl -sSf http://localhost:3000/healthz >/dev/null; then
+              echo "backend ready"; break;
+            fi
+            echo "waiting for backend..."; sleep 3
+          done
+
+      - name: Run k6 reports profile
+        run: |
+          docker run --rm --network host -v "${{ github.workspace }}/load-tests:/load-tests" loadimpact/k6:0.43.0 run --out json=/tmp/k6-report.json /load-tests/reports.js
+
+      - name: Upload k6 JSON artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-results
+          path: /tmp/k6-report.json

@@ -1,0 +1,85 @@
+name: Coverage Report
+
+on:
+  push:
+    branches: [main, "001-improve-tests-performance"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [24.11.0]
+    env:
+      BACKEND_COVERAGE_THRESHOLD: 80
+      FRONTEND_COVERAGE_THRESHOLD: 75
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install Dependencies (backend)
+        working-directory: ./backend
+        run: npm ci
+
+      - name: Run backend tests with coverage
+        working-directory: ./backend
+        run: npm run test:cov || true
+
+      - name: Upload backend coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage
+
+      - name: Install Dependencies (frontend)
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Run frontend tests with coverage
+        working-directory: ./frontend
+        run: npm run test:cov || true
+
+      - name: Upload frontend coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage
+
+      - name: Check backend coverage threshold
+        if: always()
+        run: |
+          set -e
+          if [ -f backend/coverage/coverage-final.json ]; then
+            LINES_PCT=$(jq '.total.lines.pct' backend/coverage/coverage-final.json)
+            echo "Backend coverage (lines): $LINES_PCT%"
+            if (( $(echo "$LINES_PCT < $BACKEND_COVERAGE_THRESHOLD" | bc -l) )); then
+              echo "Backend coverage below threshold ($BACKEND_COVERAGE_THRESHOLD%).";
+              exit 1
+            fi
+          else
+            echo "No backend coverage file found";
+            exit 1
+          fi
+
+      - name: Check frontend coverage threshold
+        if: always()
+        run: |
+          set -e
+          if [ -f frontend/coverage/coverage-final.json ]; then
+            LINES_PCT=$(jq '.total.lines.pct' frontend/coverage/coverage-final.json)
+            echo "Frontend coverage (lines): $LINES_PCT%"
+            if (( $(echo "$LINES_PCT < $FRONTEND_COVERAGE_THRESHOLD" | bc -l) )); then
+              echo "Frontend coverage below threshold ($FRONTEND_COVERAGE_THRESHOLD%).";
+              exit 1
+            fi
+          else
+            echo "No frontend coverage file found";
+            exit 1
+          fi

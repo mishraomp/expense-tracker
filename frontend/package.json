@@ -22,8 +22,8 @@
     "@tanstack/router-plugin": "^1.136.5",
     "axios": "^1.13.2",
     "bootstrap": "^5.3.8",
-    "bootswatch": "^5.3.8",
     "bootstrap-icons": "^1.11.3",
+    "bootswatch": "^5.3.8",
     "d3-array": "^3.2.4",
     "d3-axis": "^3.0.0",
     "d3-scale": "^4.0.2",
@@ -55,6 +55,7 @@
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.0",
+    "@vitest/coverage-v8": "^4.0.13",
     "@vitest/ui": "^4.0.9",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
@@ -72,5 +73,8 @@
   },
   "overrides": {
     "vite": "npm:rolldown-vite@7.2.2"
+  },
+  "engines": {
+    "node": "^24.11.0"
   }
 }

@@ -26,6 +26,7 @@
     "@nestjs/mapped-types": "^2.1.0",
     "@nestjs/platform-express": "^11.1.9",
     "@nestjs/schedule": "^6.0.1",
+    "@nestjs/swagger": "^11.2.3",
     "@prisma/adapter-pg": "^7.0.0",
     "@prisma/client": "^7.0.0",
     "@types/jsonwebtoken": "^9.0.10",
@@ -53,6 +54,7 @@
     "@types/supertest": "^6.0.3",
     "@typescript-eslint/eslint-plugin": "^8.46.4",
     "@typescript-eslint/parser": "^8.46.4",
+    "@vitest/coverage-v8": "^4.0.13",
     "@vitest/ui": "^4.0.9",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
@@ -63,5 +65,8 @@
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
     "vitest": "^4.0.9"
+  },
+  "engines": {
+    "node": "^24.11.0"
   }
 }
