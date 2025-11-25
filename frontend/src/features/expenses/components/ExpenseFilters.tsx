@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React from 'react';
 import { useCategories } from '../api/categoryApi';
 import { useSubcategories } from '../api/subcategoryApi';
 
@@ -11,46 +11,62 @@ interface ExpenseFiltersProps {
 
 export default function ExpenseFilters({ value, onChange }: ExpenseFiltersProps) {
   const { data: categories } = useCategories();
-  const [categoryId, setCategoryId] = useState(value?.categoryId || '');
-  const [subcategoryId, setSubcategoryId] = useState(value?.subcategoryId || '');
-  // Explicit date range inputs
-  const [startDate, setStartDate] = useState(value?.startDate || '');
-  const [endDate, setEndDate] = useState(value?.endDate || '');
-  // New month/year filtering model
   const now = new Date();
-  const [year, setYear] = useState<string>('');
-  const [month, setMonth] = useState<string>(''); // 1-12 as string
 
-  // Determine if year/month filtering is active
+  // Controlled values derived from parent
+  const categoryId = value?.categoryId ?? '';
+  const subcategoryId = value?.subcategoryId ?? '';
+  const startDate = value?.startDate ?? '';
+  const endDate = value?.endDate ?? '';
+  const year = value?.filterYear ? String(value.filterYear) : '';
+  const month = value?.filterMonth ? String(value.filterMonth).padStart(2, '0') : '';
+
   const isYearMonthActive = Boolean(year || month);
-  // Determine if range filtering is active
   const isRangeActive = Boolean(startDate || endDate);
 
   const { data: subcategories } = useSubcategories(categoryId || undefined);
 
-  // Debounce notify parent to avoid chattiness
-  useEffect(() => {
-    const t = setTimeout(() => {
-      const filterYear = year ? parseInt(year, 10) : undefined;
-      const filterMonth = filterYear && month ? parseInt(month, 10) : undefined;
+  const emit = (partial: Partial<Omit<ExpenseListQuery, 'page' | 'pageSize' | 'sortOrder'>>) => {
+    const merged: Omit<ExpenseListQuery, 'page' | 'pageSize' | 'sortOrder'> = {
+      ...(categoryId ? { categoryId } : {}),
+      ...(subcategoryId ? { subcategoryId } : {}),
+      ...(startDate ? { startDate } : {}),
+      ...(endDate ? { endDate } : {}),
+      ...(year ? { filterYear: parseInt(year, 10) } : {}),
+      ...(year && month ? { filterMonth: parseInt(month, 10) } : {}),
+      ...partial,
+    };
+    onChange?.(merged);
+  };
 
-      onChange?.({
-        categoryId: categoryId || undefined,
-        subcategoryId: subcategoryId || undefined,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
-        filterYear,
-        filterMonth,
-      });
-    }, 300);
-    return () => clearTimeout(t);
-  }, [categoryId, subcategoryId, startDate, endDate, year, month, onChange]);
-
-  // Reset subcategory when category changes
-  useEffect(() => {
-    // Defer subcategory reset to avoid synchronous setState in effect
-    setTimeout(() => setSubcategoryId(''), 0);
-  }, [categoryId]);
+  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const next = e.target.value;
+    emit({ categoryId: next || undefined, subcategoryId: undefined });
+  };
+  const handleSubcategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const next = e.target.value;
+    emit({ subcategoryId: next || undefined });
+  };
+  const handleYearChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const y = e.target.value;
+    if (!y) {
+      emit({ filterYear: undefined, filterMonth: undefined });
+    } else {
+      emit({ filterYear: parseInt(y, 10), filterMonth: month ? parseInt(month, 10) : undefined });
+    }
+  };
+  const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const m = e.target.value;
+    if (!year) emit({ filterMonth: undefined });
+    else emit({ filterMonth: m ? parseInt(m, 10) : undefined });
+  };
+  const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    emit({ startDate: e.target.value || undefined, filterYear: undefined, filterMonth: undefined });
+  };
+  const handleEndDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    emit({ endDate: e.target.value || undefined, filterYear: undefined, filterMonth: undefined });
+  };
+  const handleClear = () => onChange?.({});
 
   return (
     <div className="card mb-2">
@@ -67,7 +83,7 @@ export default function ExpenseFilters({ value, onChange }: ExpenseFiltersProps)
               id="filterCategory"
               className="form-select"
               value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
+              onChange={handleCategoryChange}
               aria-label="Filter by category"
             >
               <option value="">All categories</option>
@@ -86,7 +102,7 @@ export default function ExpenseFilters({ value, onChange }: ExpenseFiltersProps)
               id="filterSubcategory"
               className="form-select"
               value={subcategoryId}
-              onChange={(e) => setSubcategoryId(e.target.value)}
+              onChange={handleSubcategoryChange}
               aria-label="Filter by subcategory"
               disabled={!categoryId}
             >
@@ -108,7 +124,7 @@ export default function ExpenseFilters({ value, onChange }: ExpenseFiltersProps)
               id="filterYear"
               className="form-select"
               value={year}
-              onChange={(e) => setYear(e.target.value)}
+              onChange={handleYearChange}
               aria-label="Filter by year"
               disabled={isRangeActive}
             >
@@ -131,7 +147,7 @@ export default function ExpenseFilters({ value, onChange }: ExpenseFiltersProps)
               id="filterMonth"
               className="form-select"
               value={month}
-              onChange={(e) => setMonth(e.target.value)}
+              onChange={handleMonthChange}
               aria-label="Filter by month"
               disabled={isRangeActive}
             >
@@ -171,7 +187,7 @@ export default function ExpenseFilters({ value, onChange }: ExpenseFiltersProps)
               type="date"
               className="form-control"
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              onChange={handleStartDateChange}
               disabled={isYearMonthActive}
             />
           </div>
@@ -184,21 +200,14 @@ export default function ExpenseFilters({ value, onChange }: ExpenseFiltersProps)
               type="date"
               className="form-control"
               value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+              onChange={handleEndDateChange}
               disabled={isYearMonthActive}
             />
           </div>
           <div className="col-md-2">
             <button
               className="btn btn-outline-secondary w-100"
-              onClick={() => {
-                setCategoryId('');
-                setSubcategoryId('');
-                setYear('');
-                setMonth('');
-                setStartDate('');
-                setEndDate('');
-              }}
+              onClick={handleClear}
               aria-label="Clear filters"
             >
               Clear
