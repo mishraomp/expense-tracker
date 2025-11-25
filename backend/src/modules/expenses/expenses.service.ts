@@ -42,7 +42,12 @@ export class ExpensesService {
       return this.createRecurringExpenses(userId, createExpenseDto);
     }
 
-    // Create single expense
+    // Create single expense with items in a transaction if items provided
+    if (createExpenseDto.items?.length) {
+      return this.createExpenseWithItems(userId, createExpenseDto);
+    }
+
+    // Create single expense without items
     const expense = await this.prisma.expense.create({
       data: {
         userId,
@@ -58,6 +63,83 @@ export class ExpensesService {
     });
 
     return ExpenseResponseDto.fromEntity(expense);
+  }
+
+  /**
+   * Create expense with items in a single transaction.
+   * @param userId - User ID
+   * @param createExpenseDto - Expense data with items
+   * @returns Created expense with items
+   */
+  private async createExpenseWithItems(
+    userId: string,
+    createExpenseDto: CreateExpenseDto,
+  ): Promise<ExpenseResponseDto> {
+    // Validate all subcategory-category pairs for items upfront
+    if (createExpenseDto.items) {
+      for (const item of createExpenseDto.items) {
+        if (item.categoryId && item.subcategoryId) {
+          const sub = await this.prisma.subcategory.findUnique({
+            where: { id: item.subcategoryId },
+          });
+          if (!sub) {
+            throw new Error(`Subcategory ${item.subcategoryId} does not exist`);
+          }
+          if (sub.categoryId !== item.categoryId) {
+            throw new Error(
+              `Subcategory ${item.subcategoryId} does not belong to category ${item.categoryId}`,
+            );
+          }
+        }
+      }
+    }
+
+    // Create expense and items in transaction
+    const expense = await this.prisma.$transaction(async (tx) => {
+      // Create expense
+      const newExpense = await tx.expense.create({
+        data: {
+          userId,
+          categoryId: createExpenseDto.categoryId,
+          subcategoryId: createExpenseDto.subcategoryId,
+          amount: new Decimal(createExpenseDto.amount),
+          date: new Date(createExpenseDto.date),
+          description: createExpenseDto.description,
+          source: createExpenseDto.source || 'manual',
+          status: 'confirmed',
+        },
+      });
+
+      // Create items
+      if (createExpenseDto.items?.length) {
+        await tx.expenseItem.createMany({
+          data: createExpenseDto.items.map((item) => ({
+            expenseId: newExpense.id,
+            name: item.name.trim(),
+            amount: new Decimal(item.amount),
+            categoryId: item.categoryId,
+            subcategoryId: item.subcategoryId,
+            notes: item.notes?.trim(),
+          })),
+        });
+      }
+
+      // Refetch with relations and items
+      return tx.expense.findUnique({
+        where: { id: newExpense.id },
+        include: {
+          category: true,
+          subcategory: true,
+          items: {
+            where: { deletedAt: null },
+            include: { category: true, subcategory: true },
+            orderBy: { createdAt: 'asc' },
+          },
+        },
+      });
+    });
+
+    return ExpenseResponseDto.fromEntity(expense!);
   }
 
   private async createRecurringExpenses(
@@ -222,7 +304,15 @@ export class ExpensesService {
   async findOne(userId: string, id: string): Promise<ExpenseResponseDto> {
     const expense = await this.prisma.expense.findFirst({
       where: { id, userId, deletedAt: null },
-      include: { category: true, subcategory: true },
+      include: {
+        category: true,
+        subcategory: true,
+        items: {
+          where: { deletedAt: null },
+          include: { category: true, subcategory: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
     });
 
     if (!expense) {

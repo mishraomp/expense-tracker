@@ -6,9 +6,23 @@ interface Props {
   value?: string | null;
   onChange: (value: string | '') => void;
   disabled?: boolean;
+  /** Size variant: 'sm' | 'default' */
+  size?: 'sm' | 'default';
+  /** Label text (default: 'Subcategory') */
+  label?: string;
+  /** Placeholder for empty option (default: 'None') */
+  placeholder?: string;
 }
 
-export default function SubcategorySelector({ categoryId, value, onChange, disabled }: Props) {
+export default function SubcategorySelector({
+  categoryId,
+  value,
+  onChange,
+  disabled,
+  size = 'default',
+  label = 'Subcategory',
+  placeholder = 'None',
+}: Props) {
   const { data: subcategories, isLoading } = useSubcategories(categoryId);
 
   useEffect(() => {
@@ -24,19 +38,21 @@ export default function SubcategorySelector({ categoryId, value, onChange, disab
 
   if (!categoryId) return null;
 
+  const selectClass = size === 'sm' ? 'form-select form-select-sm' : 'form-select';
+
   return (
     <div>
       <label htmlFor="subcategoryId" className="form-label small mb-1">
-        Subcategory
+        {label}
       </label>
       <select
         id="subcategoryId"
-        className="form-select form-select-sm"
+        className={selectClass}
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled || isLoading}
       >
-        <option value="">None</option>
+        <option value="">{placeholder}</option>
         {(subcategories || []).map((s) => (
           <option key={s.id} value={s.id}>
             {s.name}

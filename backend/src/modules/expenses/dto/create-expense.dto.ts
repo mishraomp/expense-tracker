@@ -13,8 +13,12 @@ import {
   Min,
   Max,
   ValidateIf,
+  IsArray,
+  ValidateNested,
+  ArrayMaxSize,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { CreateExpenseItemDto } from './create-expense-item.dto';
 
 export enum ExpenseSource {
   MANUAL = 'manual',
@@ -74,4 +78,11 @@ export class CreateExpenseDto {
   @Max(365, { message: 'Number of recurrences cannot exceed 365' })
   @Type(() => Number)
   numberOfRecurrences?: number;
+
+  @IsOptional()
+  @IsArray({ message: 'Items must be an array' })
+  @ValidateNested({ each: true })
+  @ArrayMaxSize(100, { message: 'Cannot add more than 100 items per expense' })
+  @Type(() => CreateExpenseItemDto)
+  items?: CreateExpenseItemDto[];
 }

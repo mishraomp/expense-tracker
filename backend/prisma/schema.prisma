@@ -41,6 +41,7 @@ model Category {
   budgetPeriod     BudgetPeriod? @map("budget_period")
   user             User?         @relation("UserCustomCategories", fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   expenses         Expense[]
+  expenseItems     ExpenseItem[]
   subcategories    Subcategory[] @relation("CategorySubcategories")
   usersWithDefault User[]        @relation("UserDefaultCategory")
 
@@ -58,6 +59,7 @@ model Subcategory {
   budgetAmount Decimal?      @map("budget_amount") @db.Decimal(12, 2)
   budgetPeriod BudgetPeriod? @map("budget_period")
   expenses     Expense[]
+  expenseItems ExpenseItem[]
   category     Category      @relation("CategorySubcategories", fields: [categoryId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([categoryId, name], name: "idx_subcategories_category_name_unique", map: "idx_subcategories_category_name_unique")
@@ -87,6 +89,7 @@ model Expense {
   importSession   ImportSession?       @relation(fields: [importSessionId], references: [id], onUpdate: NoAction)
   subcategory     Subcategory?         @relation(fields: [subcategoryId], references: [id], onUpdate: NoAction)
   user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  items           ExpenseItem[]
 
   @@index([categoryId], map: "idx_expenses_category_id")
   @@index([connectionId], map: "idx_expenses_connection_id")
@@ -98,6 +101,30 @@ model Expense {
   @@index([userId], map: "idx_expenses_user_id")
   @@index([userId, subcategoryId], map: "idx_expenses_user_subcategory")
   @@map("expenses")
+}
+
+/// Individual line items within expense transactions
+/// Enables split receipts across different categories
+model ExpenseItem {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  expenseId     String       @map("expense_id") @db.Uuid
+  name          String       @db.VarChar(200)
+  amount        Decimal      @db.Decimal(10, 2)
+  categoryId    String?      @map("category_id") @db.Uuid
+  subcategoryId String?      @map("subcategory_id") @db.Uuid
+  notes         String?      @db.Text
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime?    @map("deleted_at") @db.Timestamptz(6)
+  expense       Expense      @relation(fields: [expenseId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  category      Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  subcategory   Subcategory? @relation(fields: [subcategoryId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([expenseId], map: "idx_expense_items_expense_id")
+  @@index([categoryId], map: "idx_expense_items_category_id")
+  @@index([subcategoryId], map: "idx_expense_items_subcategory_id")
+  @@index([deletedAt], map: "idx_expense_items_deleted_at")
+  @@map("expense_items")
 }
 
 model ImportSession {

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import type { CreateExpenseInput, Expense } from '../types/expense.types';
+import type { CreateExpenseItemInput } from '../types/expense-item.types';
 import { useCreateExpense, useUpdateExpense } from '../api/expenseApi';
 import { useCategories } from '../api/categoryApi';
 import SubcategorySelector from '../../subcategories/components/SubcategorySelector';
@@ -8,6 +9,8 @@ import UploadWidget from '../../attachments/UploadWidget';
 import { useDriveStore } from '@/stores/drive';
 import AttachmentList from '../../attachments/AttachmentList';
 import { listAttachments } from '@/services/api';
+import ExpenseItemForm from './ExpenseItemForm';
+import ExpenseItemList from './ExpenseItemList';
 
 interface ExpenseFormProps {
   expense?: Expense | null;
@@ -42,6 +45,8 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
   const { data: categories, isLoading: categoriesLoading } = useCategories();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
+  const [showItems, setShowItems] = useState(false);
+  const [items, setItems] = useState<CreateExpenseItemInput[]>([]);
   const [savedExpenseId, setSavedExpenseId] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<
     Array<{
@@ -101,6 +106,8 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
         description: expense.description || '',
       });
       setIsRecurring(false);
+      setShowItems(false);
+      setItems([]);
       setSavedExpenseId(expense.id); // Show upload section for existing expense
     } else {
       const d = new Date();
@@ -109,6 +116,8 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
       const day = String(d.getDate()).padStart(2, '0');
       reset({ date: `${y}-${m}-${day}` });
       setIsRecurring(false);
+      setShowItems(false);
+      setItems([]);
       setSavedExpenseId(null);
     }
   }, [expense, reset]);
@@ -144,9 +153,12 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
           recurring: isRecurring,
           recurrenceFrequency: isRecurring ? data.recurrenceFrequency : undefined,
           numberOfRecurrences: isRecurring ? data.numberOfRecurrences : undefined,
+          items: items.length > 0 ? items : undefined,
         };
         const result = await createExpense.mutateAsync(submitData);
         setSavedExpenseId(result.id); // Show upload section after successful create
+        setItems([]); // Clear items after successful create
+        setShowItems(false);
       }
       // Don't reset form here - keep it populated to allow uploads
       onSuccess?.();
@@ -159,6 +171,8 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
   const handleCancel = () => {
     reset();
     setSavedExpenseId(null);
+    setItems([]);
+    setShowItems(false);
     onCancel?.();
   };
 
@@ -274,6 +288,44 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
                 {descriptionLength} / 500 characters
               </div>
             </div>
+
+            {/* Line Items Section - Only show for new expenses */}
+            {!isEditMode && (
+              <div className="col-12">
+                <div className="d-flex align-items-center justify-content-between mb-2">
+                  <button
+                    type="button"
+                    className="btn btn-link btn-sm p-0 text-decoration-none"
+                    onClick={() => setShowItems(!showItems)}
+                  >
+                    <i className={`bi bi-${showItems ? 'chevron-down' : 'chevron-right'} me-1`}></i>
+                    Line Items {items.length > 0 && `(${items.length})`}
+                  </button>
+                  {items.length > 0 && (
+                    <small className="text-muted">
+                      Total: ${items.reduce((sum, i) => sum + i.amount, 0).toFixed(2)}
+                    </small>
+                  )}
+                </div>
+                {showItems && (
+                  <div className="border rounded p-2 bg-light">
+                    <ExpenseItemForm
+                      categories={categories || []}
+                      onAddItem={(item) => setItems([...items, item])}
+                      disabled={isSubmitting || categoriesLoading}
+                      defaultCategoryId={selectedCategoryId}
+                      defaultSubcategoryId={watch('subcategoryId') || undefined}
+                    />
+                    <ExpenseItemList
+                      items={items}
+                      categories={categories || []}
+                      onRemoveItem={(index) => setItems(items.filter((_, i) => i !== index))}
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
 
             {!isEditMode && (
               <>
