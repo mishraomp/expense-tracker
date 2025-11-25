@@ -13,6 +13,10 @@ import type {
   BudgetReportQuery,
   IncomeVsExpenseQuery,
   IncomeVsExpenseResponse,
+  TopExpenseItem,
+  TopExpenseItemsQuery,
+  ItemSearchQuery,
+  ItemSearchResponse,
 } from '../types/reports.types';
 
 export const reportsApi = {
@@ -96,6 +100,28 @@ export const reportsApi = {
 
   getIncomeVsExpense: async (query: IncomeVsExpenseQuery): Promise<IncomeVsExpenseResponse> => {
     const { data } = await api.get<IncomeVsExpenseResponse>('/reports/income-vs-expense', {
+      params: query,
+    });
+    return data;
+  },
+
+  /**
+   * Get top expense items aggregated by name.
+   * Returns items sorted by total amount descending.
+   */
+  getTopExpenseItems: async (query: TopExpenseItemsQuery): Promise<TopExpenseItem[]> => {
+    const { data } = await api.get<TopExpenseItem[]>('/reports/items/top', {
+      params: query,
+    });
+    return data;
+  },
+
+  /**
+   * Search expense items by name.
+   * Supports partial matching and pagination.
+   */
+  searchExpenseItems: async (query: ItemSearchQuery): Promise<ItemSearchResponse> => {
+    const { data } = await api.get<ItemSearchResponse>('/reports/items/search', {
       params: query,
     });
     return data;

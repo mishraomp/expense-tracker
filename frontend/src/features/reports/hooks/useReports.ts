@@ -7,6 +7,8 @@ import type {
   BudgetVsActualQuery,
   BudgetReportQuery,
   IncomeVsExpenseQuery,
+  TopExpenseItemsQuery,
+  ItemSearchQuery,
 } from '../types/reports.types';
 
 export const useSpendingOverTime = (query: SpendingOverTimeQuery) => {
@@ -67,6 +69,29 @@ export const useIncomeVsExpense = (query: IncomeVsExpenseQuery) => {
     queryFn: () => reportsApi.getIncomeVsExpense(query),
     staleTime: 5 * 60 * 1000,
     enabled: !!query.startDate && !!query.endDate,
+  });
+};
+
+/**
+ * Hook to fetch top expense items aggregated by name.
+ */
+export const useTopExpenseItems = (query: TopExpenseItemsQuery) => {
+  return useQuery({
+    queryKey: ['reports', 'items', 'top', query],
+    queryFn: () => reportsApi.getTopExpenseItems(query),
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
+/**
+ * Hook to search expense items by name.
+ */
+export const useSearchExpenseItems = (query: ItemSearchQuery) => {
+  return useQuery({
+    queryKey: ['reports', 'items', 'search', query],
+    queryFn: () => reportsApi.searchExpenseItems(query),
+    staleTime: 2 * 60 * 1000, // 2 minutes for search results
+    enabled: !!query.q && query.q.length >= 2, // Only search with at least 2 characters
   });
 };
 // No-op, ensure file saved

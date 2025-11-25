@@ -16,6 +16,36 @@ import {
   MonthlyComparisonDto,
 } from './dto/income-vs-expense.dto';
 
+/**
+ * Response DTO for top expense items report
+ */
+export interface TopExpenseItemDto {
+  name: string;
+  totalAmount: string;
+  itemCount: number;
+  expenseCount: number;
+  categoryId: string | null;
+  categoryName: string | null;
+  colorCode: string | null;
+}
+
+/**
+ * Response DTO for item search results
+ */
+export interface ItemSearchResultDto {
+  id: string;
+  name: string;
+  amount: string;
+  expenseId: string;
+  expenseDate: string;
+  expenseDescription: string | null;
+  categoryId: string | null;
+  categoryName: string | null;
+  subcategoryId: string | null;
+  subcategoryName: string | null;
+  notes: string | null;
+}
+
 export interface CategoryBudgetRowDto {
   category_id: string;
   category_name: string;
@@ -475,6 +505,173 @@ export class ReportsService {
       savingsRate,
       incomeByMonth,
       expensesBySubcategoryByMonth,
+    };
+  }
+
+  /**
+   * Get top expense items aggregated by name.
+   * Groups items by name and returns total amount, count, and associated category.
+   */
+  async getTopExpenseItems(
+    userId: string,
+    params: {
+      startDate?: string;
+      endDate?: string;
+      categoryId?: string;
+      limit?: number;
+    },
+  ): Promise<TopExpenseItemDto[]> {
+    const { startDate, endDate, categoryId, limit = 10 } = params;
+
+    const filters: Prisma.Sql[] = [
+      Prisma.sql`e."user_id" = ${userId}::uuid`,
+      Prisma.sql`e."deleted_at" IS NULL`,
+      Prisma.sql`ei."deleted_at" IS NULL`,
+    ];
+
+    if (startDate) filters.push(Prisma.sql`e."date" >= ${startDate}::date`);
+    if (endDate) filters.push(Prisma.sql`e."date" <= ${endDate}::date`);
+    if (categoryId) filters.push(Prisma.sql`COALESCE(ei."category_id", e."category_id") = ${categoryId}::uuid`);
+
+    const where = Prisma.sql`WHERE ${Prisma.join(filters, ' AND ')}`;
+
+    const rows: Array<{
+      name: string;
+      total_amount: string;
+      item_count: string;
+      expense_count: string;
+      category_id: string | null;
+      category_name: string | null;
+      color_code: string | null;
+    }> = await this.prisma.$queryRaw(
+      Prisma.sql`
+        SELECT 
+          LOWER(TRIM(ei."name")) as name,
+          COALESCE(SUM(ei."amount"), 0)::text as total_amount,
+          COUNT(ei."id")::text as item_count,
+          COUNT(DISTINCT ei."expense_id")::text as expense_count,
+          MODE() WITHIN GROUP (ORDER BY COALESCE(ei."category_id", e."category_id")) as category_id,
+          c."name" as category_name,
+          c."color_code" as color_code
+        FROM "expense_items" ei
+        JOIN "expenses" e ON e."id" = ei."expense_id"
+        LEFT JOIN "categories" c ON c."id" = COALESCE(ei."category_id", e."category_id")
+        ${where}
+        GROUP BY LOWER(TRIM(ei."name")), c."id", c."name", c."color_code"
+        ORDER BY COALESCE(SUM(ei."amount"), 0) DESC
+        LIMIT ${limit}
+      `,
+    );
+
+    return rows.map((r) => ({
+      name: r.name,
+      totalAmount: r.total_amount,
+      itemCount: parseInt(r.item_count),
+      expenseCount: parseInt(r.expense_count),
+      categoryId: r.category_id,
+      categoryName: r.category_name,
+      colorCode: r.color_code,
+    }));
+  }
+
+  /**
+   * Search expense items by name.
+   * Supports partial matching with pagination.
+   */
+  async searchExpenseItems(
+    userId: string,
+    params: {
+      query: string;
+      startDate?: string;
+      endDate?: string;
+      categoryId?: string;
+      page?: number;
+      pageSize?: number;
+    },
+  ): Promise<{ data: ItemSearchResultDto[]; total: number }> {
+    const { query, startDate, endDate, categoryId, page = 1, pageSize = 20 } = params;
+    const offset = (page - 1) * pageSize;
+
+    // Sanitize and create search pattern
+    const searchPattern = `%${query.toLowerCase().trim()}%`;
+
+    const filters: Prisma.Sql[] = [
+      Prisma.sql`e."user_id" = ${userId}::uuid`,
+      Prisma.sql`e."deleted_at" IS NULL`,
+      Prisma.sql`ei."deleted_at" IS NULL`,
+      Prisma.sql`LOWER(ei."name") LIKE ${searchPattern}`,
+    ];
+
+    if (startDate) filters.push(Prisma.sql`e."date" >= ${startDate}::date`);
+    if (endDate) filters.push(Prisma.sql`e."date" <= ${endDate}::date`);
+    if (categoryId) filters.push(Prisma.sql`COALESCE(ei."category_id", e."category_id") = ${categoryId}::uuid`);
+
+    const where = Prisma.sql`WHERE ${Prisma.join(filters, ' AND ')}`;
+
+    // Get total count
+    const countResult = await this.prisma.$queryRaw<{ count: string }[]>(
+      Prisma.sql`
+        SELECT COUNT(*)::text as count
+        FROM "expense_items" ei
+        JOIN "expenses" e ON e."id" = ei."expense_id"
+        ${where}
+      `,
+    );
+    const total = parseInt(countResult[0]?.count || '0');
+
+    // Get paginated results
+    const rows: Array<{
+      id: string;
+      name: string;
+      amount: string;
+      expense_id: string;
+      expense_date: Date;
+      expense_description: string | null;
+      category_id: string | null;
+      category_name: string | null;
+      subcategory_id: string | null;
+      subcategory_name: string | null;
+      notes: string | null;
+    }> = await this.prisma.$queryRaw(
+      Prisma.sql`
+        SELECT 
+          ei."id",
+          ei."name",
+          ei."amount"::text as amount,
+          ei."expense_id",
+          e."date" as expense_date,
+          e."description" as expense_description,
+          COALESCE(ei."category_id", e."category_id") as category_id,
+          c."name" as category_name,
+          COALESCE(ei."subcategory_id", e."subcategory_id") as subcategory_id,
+          s."name" as subcategory_name,
+          ei."notes"
+        FROM "expense_items" ei
+        JOIN "expenses" e ON e."id" = ei."expense_id"
+        LEFT JOIN "categories" c ON c."id" = COALESCE(ei."category_id", e."category_id")
+        LEFT JOIN "subcategories" s ON s."id" = COALESCE(ei."subcategory_id", e."subcategory_id")
+        ${where}
+        ORDER BY e."date" DESC, ei."created_at" DESC
+        LIMIT ${pageSize}
+        OFFSET ${offset}
+      `,
+    );
+
+    return {
+      data: rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        amount: r.amount,
+        expenseId: r.expense_id,
+        expenseDate: r.expense_date.toISOString().split('T')[0],
+        expenseDescription: r.expense_description,
+        categoryId: r.category_id,
+        categoryName: r.category_name,
+        subcategoryId: r.subcategory_id,
+        subcategoryName: r.subcategory_name,
+        notes: r.notes,
+      })),
+      total,
     };
   }
 }

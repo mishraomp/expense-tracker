@@ -141,3 +141,49 @@ export type ReportType =
   | 'spending-by-subcategory'
   | 'budget-vs-actual'
   | 'income-vs-expense';
+
+// Item-level report types
+export interface TopExpenseItem {
+  name: string;
+  totalAmount: string;
+  itemCount: number;
+  expenseCount: number;
+  categoryId: string | null;
+  categoryName: string | null;
+  colorCode: string | null;
+}
+
+export interface TopExpenseItemsQuery {
+  startDate?: string;
+  endDate?: string;
+  categoryId?: string;
+  limit?: number;
+}
+
+export interface ItemSearchResult {
+  id: string;
+  name: string;
+  amount: string;
+  expenseId: string;
+  expenseDate: string;
+  expenseDescription: string | null;
+  categoryId: string | null;
+  categoryName: string | null;
+  subcategoryId: string | null;
+  subcategoryName: string | null;
+  notes: string | null;
+}
+
+export interface ItemSearchQuery {
+  q: string;
+  startDate?: string;
+  endDate?: string;
+  categoryId?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface ItemSearchResponse {
+  data: ItemSearchResult[];
+  total: number;
+}

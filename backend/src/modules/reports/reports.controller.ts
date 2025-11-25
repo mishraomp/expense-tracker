@@ -69,4 +69,50 @@ export class ReportsController {
     const userId = req.user.sub;
     return this.reportsService.getIncomeVsExpense(userId, query);
   }
+
+  /**
+   * GET /reports/items/top
+   * Get top expense items aggregated by name
+   */
+  @Get('items/top')
+  getTopExpenseItems(
+    @Query('startDate') startDate: string | undefined,
+    @Query('endDate') endDate: string | undefined,
+    @Query('categoryId') categoryId: string | undefined,
+    @Query('limit') limit: string | undefined,
+    @Request() req,
+  ) {
+    const userId = req.user.sub;
+    return this.reportsService.getTopExpenseItems(userId, {
+      startDate,
+      endDate,
+      categoryId,
+      limit: limit ? parseInt(limit, 10) : 10,
+    });
+  }
+
+  /**
+   * GET /reports/items/search
+   * Search expense items by name
+   */
+  @Get('items/search')
+  searchExpenseItems(
+    @Query('q') query: string,
+    @Query('startDate') startDate: string | undefined,
+    @Query('endDate') endDate: string | undefined,
+    @Query('categoryId') categoryId: string | undefined,
+    @Query('page') page: string | undefined,
+    @Query('pageSize') pageSize: string | undefined,
+    @Request() req,
+  ) {
+    const userId = req.user.sub;
+    return this.reportsService.searchExpenseItems(userId, {
+      query: query || '',
+      startDate,
+      endDate,
+      categoryId,
+      page: page ? parseInt(page, 10) : 1,
+      pageSize: pageSize ? parseInt(pageSize, 10) : 20,
+    });
+  }
 }
