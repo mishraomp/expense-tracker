@@ -201,25 +201,21 @@ export default function ExpensesTable({ filters = {}, onEdit }: ExpensesTablePro
         cell: ({ row }) => (
           <div className="d-flex gap-1">
             <button
-              className="btn btn-sm btn-outline-primary"
-              onClick={() => handleEdit(row.original)}
-              aria-label={`Edit expense from ${row.original.date}`}
-            >
-              Edit
-            </button>
-            <button
               className="btn btn-sm btn-outline-danger"
-              onClick={() => handleDeleteClick(row.original)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteClick(row.original);
+              }}
               aria-label={`Delete expense from ${row.original.date}`}
             >
               Delete
             </button>
           </div>
         ),
-        size: 140,
+        size: 80,
       }),
     ],
-    [handleEdit, handleDeleteClick],
+    [handleDeleteClick],
   );
 
   const table = useReactTable({
@@ -323,7 +319,13 @@ export default function ExpensesTable({ filters = {}, onEdit }: ExpensesTablePro
               </thead>
               <tbody>
                 {table.getRowModel().rows.map((row) => (
-                  <tr key={row.id}>
+                  <tr
+                    key={row.id}
+                    onClick={() => handleEdit(row.original)}
+                    style={{ cursor: 'pointer' }}
+                    className="table-row-clickable"
+                    aria-label={`Edit expense from ${row.original.date}`}
+                  >
                     {row.getVisibleCells().map((cell) => (
                       <td key={cell.id}>
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
