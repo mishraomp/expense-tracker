@@ -63,7 +63,7 @@ export default function ExpensesPage() {
 
       <div className="row g-2">
         <div className="col-12">
-          <ExpensesTable onEdit={handleEdit} filters={filters} />
+          <ExpensesTable onEdit={handleEdit} filters={filters} onFilterChange={setFilters} />
         </div>
       </div>
 

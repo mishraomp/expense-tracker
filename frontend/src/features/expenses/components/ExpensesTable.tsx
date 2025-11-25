@@ -17,11 +17,16 @@ import { useDeleteExpense } from '../api/expenseApi';
 interface ExpensesTableProps {
   filters?: Omit<ExpenseListQuery, 'page' | 'pageSize'>;
   onEdit?: (expense: Expense) => void;
+  onFilterChange?: (filters: Omit<ExpenseListQuery, 'page' | 'pageSize'>) => void;
 }
 
 const columnHelper = createColumnHelper<Expense>();
 
-export default function ExpensesTable({ filters = {}, onEdit }: ExpensesTableProps) {
+export default function ExpensesTable({
+  filters = {},
+  onEdit,
+  onFilterChange,
+}: ExpensesTableProps) {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'date', desc: true }]);
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -79,6 +84,36 @@ export default function ExpensesTable({ filters = {}, onEdit }: ExpensesTablePro
     setDeleteModalOpen(false);
     setExpenseToDelete(null);
   }, []);
+
+  const handleCategoryFilter = useCallback(
+    (categoryId: string, e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!onFilterChange) return;
+      const isSame = filters.categoryId === categoryId;
+      onFilterChange({
+        ...filters,
+        categoryId: isSame ? undefined : categoryId,
+        subcategoryId: undefined, // clear subcategory when category changes or toggles off
+      });
+    },
+    [filters, onFilterChange],
+  );
+
+  const handleSubcategoryFilter = useCallback(
+    (subcategoryId: string, parentCategoryId: string | undefined, e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!onFilterChange) return;
+      const isSame = filters.subcategoryId === subcategoryId;
+      onFilterChange({
+        ...filters,
+        categoryId: parentCategoryId || filters.categoryId,
+        subcategoryId: isSame ? undefined : subcategoryId,
+      });
+    },
+    [filters, onFilterChange],
+  );
 
   const columns = useMemo(
     () => [
@@ -145,10 +180,21 @@ export default function ExpensesTable({ filters = {}, onEdit }: ExpensesTablePro
             return rawIcon;
           };
 
+          if (!category) {
+            return <span className="badge bg-secondary">{categoryName}</span>;
+          }
+          const active = filters.categoryId === category.id;
           return (
-            <span
-              className="badge text-white d-flex align-items-center gap-1"
-              style={{ backgroundColor: bgColor }}
+            <button
+              type="button"
+              onClick={(e) => handleCategoryFilter(category.id, e)}
+              className={`badge text-white d-flex align-items-center gap-1 border-0 ${active ? 'shadow-sm' : ''}`}
+              style={{
+                backgroundColor: bgColor,
+                cursor: 'pointer',
+                outline: active ? '2px solid #0d6efd' : 'none',
+              }}
+              title={active ? 'Clear category filter' : `Filter by ${categoryName}`}
             >
               {rawIcon && (
                 <span className="me-1" style={{ fontSize: '1.1em', lineHeight: 1 }}>
@@ -156,7 +202,8 @@ export default function ExpensesTable({ filters = {}, onEdit }: ExpensesTablePro
                 </span>
               )}
               {categoryName}
-            </span>
+              {active && <i className="bi bi-x ms-1" aria-label="Clear" />}
+            </button>
           );
         },
         size: 150,
@@ -165,14 +212,28 @@ export default function ExpensesTable({ filters = {}, onEdit }: ExpensesTablePro
         id: 'subcategory',
         header: 'Subcategory',
         cell: ({ row }) => {
-          const subcategoryName = row.original.subcategory?.name || '-';
-          if (!row.original.subcategory?.name) return subcategoryName;
+          const subcategory = row.original.subcategory;
+          const subcategoryName = subcategory?.name || '-';
+          if (!subcategory) return subcategoryName;
           const colorCode = row.original.category?.colorCode;
-          const bgColor = colorCode || '#6c757d'; // use category color
+          const bgColor = colorCode || '#6c757d';
+          const active = filters.subcategoryId === subcategory.id;
           return (
-            <span className="badge text-white" style={{ backgroundColor: bgColor, opacity: 0.75 }}>
+            <button
+              type="button"
+              onClick={(e) => handleSubcategoryFilter(subcategory.id, row.original.category?.id, e)}
+              className={`badge text-white border-0 ${active ? 'shadow-sm' : ''}`}
+              style={{
+                backgroundColor: bgColor,
+                opacity: 0.75,
+                cursor: 'pointer',
+                outline: active ? '2px solid #0d6efd' : 'none',
+              }}
+              title={active ? 'Clear subcategory filter' : `Filter by ${subcategoryName}`}
+            >
               {subcategoryName}
-            </span>
+              {active && <i className="bi bi-x ms-1" aria-label="Clear" />}
+            </button>
           );
         },
         size: 150,
@@ -215,7 +276,13 @@ export default function ExpensesTable({ filters = {}, onEdit }: ExpensesTablePro
         size: 80,
       }),
     ],
-    [handleDeleteClick],
+    [
+      handleDeleteClick,
+      handleCategoryFilter,
+      handleSubcategoryFilter,
+      filters.categoryId,
+      filters.subcategoryId,
+    ],
   );
 
   const table = useReactTable({
@@ -321,7 +388,12 @@ export default function ExpensesTable({ filters = {}, onEdit }: ExpensesTablePro
                 {table.getRowModel().rows.map((row) => (
                   <tr
                     key={row.id}
-                    onClick={() => handleEdit(row.original)}
+                    onClick={(e) => {
+                      // Avoid triggering edit when clicking filter badges
+                      const target = e.target as HTMLElement;
+                      if (target.closest('button')) return;
+                      handleEdit(row.original);
+                    }}
                     style={{ cursor: 'pointer' }}
                     className="table-row-clickable"
                     aria-label={`Edit expense from ${row.original.date}`}
