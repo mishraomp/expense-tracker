@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useCategories } from '../api/categoryApi';
 import { useSubcategories } from '../api/subcategoryApi';
 
@@ -20,24 +20,47 @@ export default function ExpenseFilters({ value, onChange }: ExpenseFiltersProps)
   const endDate = value?.endDate ?? '';
   const year = value?.filterYear ? String(value.filterYear) : '';
   const month = value?.filterMonth ? String(value.filterMonth).padStart(2, '0') : '';
+  const itemNameFromValue = value?.itemName ?? '';
+
+  // Local state for debounced item name input
+  const [itemNameInput, setItemNameInput] = useState(itemNameFromValue);
 
   const isYearMonthActive = Boolean(year || month);
   const isRangeActive = Boolean(startDate || endDate);
 
   const { data: subcategories } = useSubcategories(categoryId || undefined);
 
-  const emit = (partial: Partial<Omit<ExpenseListQuery, 'page' | 'pageSize' | 'sortOrder'>>) => {
-    const merged: Omit<ExpenseListQuery, 'page' | 'pageSize' | 'sortOrder'> = {
-      ...(categoryId ? { categoryId } : {}),
-      ...(subcategoryId ? { subcategoryId } : {}),
-      ...(startDate ? { startDate } : {}),
-      ...(endDate ? { endDate } : {}),
-      ...(year ? { filterYear: parseInt(year, 10) } : {}),
-      ...(year && month ? { filterMonth: parseInt(month, 10) } : {}),
-      ...partial,
-    };
-    onChange?.(merged);
-  };
+  const emit = useCallback(
+    (partial: Partial<Omit<ExpenseListQuery, 'page' | 'pageSize' | 'sortOrder'>>) => {
+      const merged: Omit<ExpenseListQuery, 'page' | 'pageSize' | 'sortOrder'> = {
+        ...(categoryId ? { categoryId } : {}),
+        ...(subcategoryId ? { subcategoryId } : {}),
+        ...(startDate ? { startDate } : {}),
+        ...(endDate ? { endDate } : {}),
+        ...(year ? { filterYear: parseInt(year, 10) } : {}),
+        ...(year && month ? { filterMonth: parseInt(month, 10) } : {}),
+        ...(itemNameFromValue ? { itemName: itemNameFromValue } : {}),
+        ...partial,
+      };
+      onChange?.(merged);
+    },
+    [categoryId, subcategoryId, startDate, endDate, year, month, itemNameFromValue, onChange],
+  );
+
+  // Sync local state when parent value changes (e.g., clear filters)
+  useEffect(() => {
+    setItemNameInput(itemNameFromValue);
+  }, [itemNameFromValue]);
+
+  // Debounce item name filter
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (itemNameInput !== itemNameFromValue) {
+        emit({ itemName: itemNameInput || undefined });
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [itemNameInput, itemNameFromValue, emit]);
 
   const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const next = e.target.value;
@@ -66,22 +89,29 @@ export default function ExpenseFilters({ value, onChange }: ExpenseFiltersProps)
   const handleEndDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     emit({ endDate: e.target.value || undefined, filterYear: undefined, filterMonth: undefined });
   };
-  const handleClear = () => onChange?.({});
+  const handleItemNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setItemNameInput(e.target.value);
+  };
+  const handleClear = () => {
+    setItemNameInput('');
+    onChange?.({});
+  };
 
   return (
     <div className="card mb-2">
-      <div className="card-header py-2">
-        <h6 className="mb-0">Filters</h6>
+      <div className="card-header py-1">
+        <h6 className="mb-0 small">Filters</h6>
       </div>
       <div className="card-body p-2">
-        <div className="row g-2 align-items-end">
-          <div className="col-md-3">
-            <label htmlFor="filterCategory" className="form-label small mb-1">
+        {/* Row 1: Category, Subcategory, Item name, Year */}
+        <div className="row g-2 align-items-end mb-2">
+          <div className="col-6 col-md-3">
+            <label htmlFor="filterCategory" className="form-label small mb-0">
               Category
             </label>
             <select
               id="filterCategory"
-              className="form-select"
+              className="form-select form-select-sm"
               value={categoryId}
               onChange={handleCategoryChange}
               aria-label="Filter by category"
@@ -94,13 +124,13 @@ export default function ExpenseFilters({ value, onChange }: ExpenseFiltersProps)
               ))}
             </select>
           </div>
-          <div className="col-md-3">
-            <label htmlFor="filterSubcategory" className="form-label small mb-1">
+          <div className="col-6 col-md-3">
+            <label htmlFor="filterSubcategory" className="form-label small mb-0">
               Subcategory
             </label>
             <select
               id="filterSubcategory"
-              className="form-select"
+              className="form-select form-select-sm"
               value={subcategoryId}
               onChange={handleSubcategoryChange}
               aria-label="Filter by subcategory"
@@ -116,13 +146,27 @@ export default function ExpenseFilters({ value, onChange }: ExpenseFiltersProps)
                 ))}
             </select>
           </div>
-          <div className="col-md-2">
-            <label htmlFor="filterYear" className="form-label small mb-1">
+          <div className="col-6 col-md-3">
+            <label htmlFor="filterItemName" className="form-label small mb-0">
+              Item name
+            </label>
+            <input
+              id="filterItemName"
+              type="text"
+              className="form-control form-control-sm"
+              value={itemNameInput}
+              onChange={handleItemNameChange}
+              placeholder="Search items..."
+              aria-label="Filter by item name"
+            />
+          </div>
+          <div className="col-6 col-md-3">
+            <label htmlFor="filterYear" className="form-label small mb-0">
               Year
             </label>
             <select
               id="filterYear"
-              className="form-select"
+              className="form-select form-select-sm"
               value={year}
               onChange={handleYearChange}
               aria-label="Filter by year"
@@ -139,13 +183,16 @@ export default function ExpenseFilters({ value, onChange }: ExpenseFiltersProps)
               })}
             </select>
           </div>
-          <div className="col-md-2">
-            <label htmlFor="filterMonth" className="form-label small mb-1">
+        </div>
+        {/* Row 2: Month, Start date, End date, Clear */}
+        <div className="row g-2 align-items-end">
+          <div className="col-6 col-md-3">
+            <label htmlFor="filterMonth" className="form-label small mb-0">
               Month
             </label>
             <select
               id="filterMonth"
-              className="form-select"
+              className="form-select form-select-sm"
               value={month}
               onChange={handleMonthChange}
               aria-label="Filter by month"
@@ -174,39 +221,36 @@ export default function ExpenseFilters({ value, onChange }: ExpenseFiltersProps)
                 );
               })}
             </select>
-            {!year && month && (
-              <div className="form-text">Select a year to apply month filter.</div>
-            )}
           </div>
-          <div className="col-md-2">
-            <label htmlFor="filterStart" className="form-label small mb-1">
+          <div className="col-6 col-md-3">
+            <label htmlFor="filterStart" className="form-label small mb-0">
               Start date
             </label>
             <input
               id="filterStart"
               type="date"
-              className="form-control"
+              className="form-control form-control-sm"
               value={startDate}
               onChange={handleStartDateChange}
               disabled={isYearMonthActive}
             />
           </div>
-          <div className="col-md-2">
-            <label htmlFor="filterEnd" className="form-label small mb-1">
+          <div className="col-6 col-md-3">
+            <label htmlFor="filterEnd" className="form-label small mb-0">
               End date
             </label>
             <input
               id="filterEnd"
               type="date"
-              className="form-control"
+              className="form-control form-control-sm"
               value={endDate}
               onChange={handleEndDateChange}
               disabled={isYearMonthActive}
             />
           </div>
-          <div className="col-md-2">
+          <div className="col-6 col-md-3">
             <button
-              className="btn btn-outline-secondary w-100"
+              className="btn btn-outline-secondary btn-sm w-100"
               onClick={handleClear}
               aria-label="Clear filters"
             >

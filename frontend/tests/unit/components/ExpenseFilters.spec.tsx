@@ -27,6 +27,39 @@ describe('ExpenseFilters component', () => {
     expect(last.categoryId).toBe('cat-1');
   });
 
+  it('fires onChange with itemName when item name input changes', async () => {
+    const onChange = vi.fn();
+    render(<ExpenseFilters onChange={onChange} />);
+
+    // Type in item name filter
+    const itemNameInput = screen.getByLabelText('Filter by item name');
+    fireEvent.change(itemNameInput, { target: { value: 'milk' } });
+
+    // The onChange is debounced for 300ms; wait and assert using waitFor
+    await waitFor(() => expect(onChange).toHaveBeenCalled(), { timeout: 500 });
+    const last = onChange.mock.calls[onChange.mock.calls.length - 1][0];
+    expect(last.itemName).toBe('milk');
+  });
+
+  it('clears item name input when Clear button is clicked', async () => {
+    const onChange = vi.fn();
+    render(<ExpenseFilters value={{ itemName: 'test' }} onChange={onChange} />);
+
+    // Verify initial value is displayed
+    const itemNameInput = screen.getByLabelText('Filter by item name') as HTMLInputElement;
+    expect(itemNameInput.value).toBe('test');
+
+    // Click clear button
+    const clearButton = screen.getByLabelText('Clear filters');
+    fireEvent.click(clearButton);
+
+    // Verify onChange was called with empty object and input is cleared
+    await waitFor(() => {
+      expect(onChange).toHaveBeenCalledWith({});
+      expect(itemNameInput.value).toBe('');
+    });
+  });
+
   it('disables date inputs when year/month filter active', async () => {
     const onChange = vi.fn();
     // Pass value with year and month selected (controlled component)
