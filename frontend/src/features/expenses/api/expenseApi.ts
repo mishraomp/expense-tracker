@@ -38,6 +38,9 @@ export const useExpenses = (query: ExpenseListQuery = {}) => {
       if (query.filterYear !== undefined) params.append('filterYear', String(query.filterYear));
       if (query.filterMonth !== undefined) params.append('filterMonth', String(query.filterMonth));
       if (query.itemName) params.append('itemName', query.itemName);
+      if (query.tagIds && query.tagIds.length > 0) {
+        params.append('tagIds', query.tagIds.join(','));
+      }
 
       const response = await api.get(`/expenses?${params.toString()}`);
       return response.data;

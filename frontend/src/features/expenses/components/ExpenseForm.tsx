@@ -4,6 +4,7 @@ import type { CreateExpenseInput, Expense } from '../types/expense.types';
 import type { CreateExpenseItemInput } from '../types/expense-item.types';
 import { useCreateExpense, useUpdateExpense } from '../api/expenseApi';
 import { useCategories } from '../api/categoryApi';
+import { useTags, useCreateTag } from '../api/tagApi';
 import SubcategorySelector from '../../subcategories/components/SubcategorySelector';
 import UploadWidget from '../../attachments/UploadWidget';
 import { useDriveStore } from '@/stores/drive';
@@ -12,6 +13,7 @@ import { listAttachments } from '@/services/api';
 import ExpenseItemForm from './ExpenseItemForm';
 import ExpenseItemList from './ExpenseItemList';
 import ExpenseItemsManager from './ExpenseItemsManager';
+import { TagSelector } from '@/components/tags';
 
 interface ExpenseFormProps {
   expense?: Expense | null;
@@ -44,10 +46,13 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
   const createExpense = useCreateExpense();
   const updateExpense = useUpdateExpense();
   const { data: categories, isLoading: categoriesLoading } = useCategories();
+  const { data: tags = [], isLoading: tagsLoading } = useTags();
+  const createTag = useCreateTag();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
   const [showItems, setShowItems] = useState(false);
   const [items, setItems] = useState<CreateExpenseItemInput[]>([]);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [savedExpenseId, setSavedExpenseId] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<
     Array<{
@@ -109,6 +114,7 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
       setIsRecurring(false);
       setShowItems(false);
       setItems([]);
+      setSelectedTagIds(expense.tags?.map((t) => t.id) || []);
       setSavedExpenseId(expense.id); // Show upload section for existing expense
     } else {
       const d = new Date();
@@ -119,6 +125,7 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
       setIsRecurring(false);
       setShowItems(false);
       setItems([]);
+      setSelectedTagIds([]);
       setSavedExpenseId(null);
     }
   }, [expense, reset]);
@@ -146,7 +153,10 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
     setIsSubmitting(true);
     try {
       if (isEditMode) {
-        await updateExpense.mutateAsync({ id: expense.id, data });
+        await updateExpense.mutateAsync({
+          id: expense.id,
+          data: { ...data, tagIds: selectedTagIds },
+        });
         setSavedExpenseId(expense.id);
       } else {
         const submitData = {
@@ -155,11 +165,13 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
           recurrenceFrequency: isRecurring ? data.recurrenceFrequency : undefined,
           numberOfRecurrences: isRecurring ? data.numberOfRecurrences : undefined,
           items: items.length > 0 ? items : undefined,
+          tagIds: selectedTagIds.length > 0 ? selectedTagIds : undefined,
         };
         const result = await createExpense.mutateAsync(submitData);
         setSavedExpenseId(result.id); // Show upload section after successful create
         setItems([]); // Clear items after successful create
         setShowItems(false);
+        setSelectedTagIds([]); // Clear tags after successful create
       }
       // Don't reset form here - keep it populated to allow uploads
       onSuccess?.();
@@ -174,6 +186,7 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
     setSavedExpenseId(null);
     setItems([]);
     setShowItems(false);
+    setSelectedTagIds([]);
     onCancel?.();
   };
 
@@ -288,6 +301,26 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
               <div className="form-text small" aria-live="polite">
                 {descriptionLength} / 500 characters
               </div>
+            </div>
+
+            <div className="col-12">
+              <label className="form-label small mb-1">Tags</label>
+              <TagSelector
+                tags={tags}
+                selectedTagIds={selectedTagIds}
+                onChange={setSelectedTagIds}
+                onCreateTag={async (name) => {
+                  try {
+                    const newTag = await createTag.mutateAsync({ name });
+                    setSelectedTagIds([...selectedTagIds, newTag.id]);
+                  } catch {
+                    // Error handled by mutation
+                  }
+                }}
+                placeholder="Add tags..."
+                disabled={isSubmitting}
+                isLoading={tagsLoading || createTag.isPending}
+              />
             </div>
 
             {/* Line Items Section - For new expenses: inline form, for edit mode: manager component */}

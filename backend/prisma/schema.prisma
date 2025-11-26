@@ -22,6 +22,7 @@ model User {
   financialConnections FinancialConnection[]
   importSessions       ImportSession[]
   incomes              Income[]
+  tags                 Tag[]
   defaultCategory      Category?             @relation("UserDefaultCategory", fields: [defaultCategoryId], references: [id], onUpdate: NoAction, map: "fk_users_default_category")
 
   @@map("users")
@@ -40,8 +41,8 @@ model Category {
   budgetAmount     Decimal?      @map("budget_amount") @db.Decimal(12, 2)
   budgetPeriod     BudgetPeriod? @map("budget_period")
   user             User?         @relation("UserCustomCategories", fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  expenses         Expense[]
   expenseItems     ExpenseItem[]
+  expenses         Expense[]
   subcategories    Subcategory[] @relation("CategorySubcategories")
   usersWithDefault User[]        @relation("UserDefaultCategory")
 
@@ -58,12 +59,13 @@ model Subcategory {
   updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   budgetAmount Decimal?      @map("budget_amount") @db.Decimal(12, 2)
   budgetPeriod BudgetPeriod? @map("budget_period")
-  expenses     Expense[]
   expenseItems ExpenseItem[]
+  expenses     Expense[]
   category     Category      @relation("CategorySubcategories", fields: [categoryId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([categoryId, name], name: "idx_subcategories_category_name_unique", map: "idx_subcategories_category_name_unique")
   @@index([categoryId], map: "idx_subcategories_category_id")
+  @@index([name, categoryId], map: "idx_subcategories_name_category")
   @@map("subcategories")
 }
 
@@ -84,12 +86,13 @@ model Expense {
   updatedAt       DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt       DateTime?            @map("deleted_at") @db.Timestamptz(6)
   subcategoryId   String?              @map("subcategory_id") @db.Uuid
+  items           ExpenseItem[]
+  expenseTags     ExpenseTag[]
   category        Category             @relation(fields: [categoryId], references: [id], onUpdate: NoAction)
   connection      FinancialConnection? @relation(fields: [connectionId], references: [id], onUpdate: NoAction)
   importSession   ImportSession?       @relation(fields: [importSessionId], references: [id], onUpdate: NoAction)
   subcategory     Subcategory?         @relation(fields: [subcategoryId], references: [id], onUpdate: NoAction)
   user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  items           ExpenseItem[]
 
   @@index([categoryId], map: "idx_expenses_category_id")
   @@index([connectionId], map: "idx_expenses_connection_id")
@@ -105,25 +108,26 @@ model Expense {
 
 /// Individual line items within expense transactions
 /// Enables split receipts across different categories
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model ExpenseItem {
-  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  expenseId     String       @map("expense_id") @db.Uuid
-  name          String       @db.VarChar(200)
-  amount        Decimal      @db.Decimal(10, 2)
-  categoryId    String?      @map("category_id") @db.Uuid
-  subcategoryId String?      @map("subcategory_id") @db.Uuid
-  notes         String?      @db.Text
-  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  deletedAt     DateTime?    @map("deleted_at") @db.Timestamptz(6)
-  expense       Expense      @relation(fields: [expenseId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  category      Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  subcategory   Subcategory? @relation(fields: [subcategoryId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  expenseId         String              @map("expense_id") @db.Uuid
+  name              String              @db.VarChar(200)
+  amount            Decimal             @db.Decimal(10, 2)
+  categoryId        String?             @map("category_id") @db.Uuid
+  subcategoryId     String?             @map("subcategory_id") @db.Uuid
+  notes             String?
+  createdAt         DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt         DateTime?           @map("deleted_at") @db.Timestamptz(6)
+  expenseItemTags   ExpenseItemTag[]
+  category          Category?           @relation(fields: [categoryId], references: [id], onUpdate: NoAction)
+  expense           Expense             @relation(fields: [expenseId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  subcategory       Subcategory?        @relation(fields: [subcategoryId], references: [id], onUpdate: NoAction)
 
   @@index([expenseId], map: "idx_expense_items_expense_id")
   @@index([categoryId], map: "idx_expense_items_category_id")
   @@index([subcategoryId], map: "idx_expense_items_subcategory_id")
-  @@index([deletedAt], map: "idx_expense_items_deleted_at")
   @@map("expense_items")
 }
 
@@ -254,6 +258,51 @@ model user_drive_auth {
   encrypted_refresh_token String   @db.VarChar(500)
   scopes                  String[]
   last_validated_at       DateTime @default(now()) @db.Timestamptz(6)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model ExpenseItemTag {
+  expenseItemId String      @map("expense_item_id") @db.Uuid
+  tagId         String      @map("tag_id") @db.Uuid
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  expenseItem   ExpenseItem @relation(fields: [expenseItemId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tag           Tag         @relation(fields: [tagId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([expenseItemId, tagId])
+  @@index([expenseItemId], map: "idx_expense_item_tags_expense_item_id")
+  @@index([tagId], map: "idx_expense_item_tags_tag_id")
+  @@map("expense_item_tags")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model ExpenseTag {
+  expenseId String   @map("expense_id") @db.Uuid
+  tagId     String   @map("tag_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  expense   Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([expenseId, tagId])
+  @@index([expenseId], map: "idx_expense_tags_expense_id")
+  @@index([tagId], map: "idx_expense_tags_tag_id")
+  @@map("expense_tags")
+}
+
+/// User-defined tags for flexible expense categorization
+model Tag {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String           @map("user_id") @db.Uuid
+  name            String           @db.VarChar(50)
+  colorCode       String?          @map("color_code") @db.VarChar(7)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  expenseItemTags ExpenseItemTag[]
+  expenseTags     ExpenseTag[]
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([userId, name], map: "uq_tags_user_name")
+  @@index([userId], map: "idx_tags_user_id")
+  @@map("tags")
 }
 
 enum CategoryType {

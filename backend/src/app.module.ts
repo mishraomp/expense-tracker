@@ -12,6 +12,7 @@ import { IncomesModule } from './modules/incomes/incomes.module';
 import { KeycloakAuthGuard } from './common/guards/keycloak-auth.guard';
 import { ExportModule } from './modules/export/export.module';
 import { AttachmentsModule } from './modules/attachments/attachments.module';
+import { TagsModule } from './modules/tags/tags.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { AttachmentsModule } from './modules/attachments/attachments.module';
     IncomesModule,
     ExportModule,
     AttachmentsModule,
+    TagsModule,
   ],
   controllers: [],
   providers: [

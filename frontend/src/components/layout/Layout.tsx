@@ -66,6 +66,11 @@ export function Layout({ children }: LayoutProps) {
                   </Link>
                 </li>
                 <li className="nav-item">
+                  <Link to="/tags" className="nav-link" activeProps={{ className: 'active' }}>
+                    Tags
+                  </Link>
+                </li>
+                <li className="nav-item">
                   <Link to="/import" className="nav-link" activeProps={{ className: 'active' }}>
                     Import
                   </Link>

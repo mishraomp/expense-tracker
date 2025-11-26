@@ -11,10 +11,12 @@ import {
 import { useExpenses } from '../api/expenseApi';
 import { useCategories } from '../api/categoryApi';
 import { useSubcategories } from '../api/subcategoryApi';
+import { useTags } from '../api/tagApi';
 import { toYYYYMMDD } from '@/services/date';
 import type { ExpenseListQuery, Expense } from '../types/expense.types';
 import DeleteConfirmModal from './DeleteConfirmModal';
 import { useDeleteExpense } from '../api/expenseApi';
+import { TagBadge, TagFilterSelect } from '@/components/tags';
 
 interface ExpensesTableProps {
   filters?: Omit<ExpenseListQuery, 'page' | 'pageSize'>;
@@ -44,6 +46,7 @@ export default function ExpensesTable({
   // Fetch categories and subcategories for filter dropdowns
   const { data: categories } = useCategories();
   const { data: subcategories } = useSubcategories(filters.categoryId || undefined);
+  const { data: allTags = [] } = useTags();
 
   // Sync local item name state when parent filters change (e.g., clear)
   useEffect(() => {
@@ -167,6 +170,29 @@ export default function ExpensesTable({
     [filters, onFilterChange],
   );
 
+  const handleTagFilter = useCallback(
+    (tagId: string) => {
+      if (!onFilterChange) return;
+      const currentTagIds = filters.tagIds || [];
+      const isActive = currentTagIds.includes(tagId);
+      onFilterChange({
+        ...filters,
+        tagIds: isActive ? currentTagIds.filter((id) => id !== tagId) : [...currentTagIds, tagId],
+      });
+    },
+    [filters, onFilterChange],
+  );
+
+  const handleTagFilterChange = useCallback(
+    (tagIds: string[]) => {
+      onFilterChange?.({
+        ...filters,
+        tagIds: tagIds.length > 0 ? tagIds : undefined,
+      });
+    },
+    [filters, onFilterChange],
+  );
+
   const handleStartDateChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const value = e.target.value;
@@ -205,7 +231,8 @@ export default function ExpensesTable({
     filters.filterMonth ||
     filters.startDate ||
     filters.endDate ||
-    filters.itemName;
+    filters.itemName ||
+    (filters.tagIds && filters.tagIds.length > 0);
 
   const columns = useMemo(
     () => [
@@ -346,6 +373,28 @@ export default function ExpensesTable({
           );
         },
       }),
+      columnHelper.accessor((row) => row.tags || [], {
+        id: 'tags',
+        header: 'Tags',
+        cell: ({ row }) => {
+          const tags = row.original.tags || [];
+          if (tags.length === 0) {
+            return <span className="text-muted">-</span>;
+          }
+          return (
+            <div className="tag-list">
+              {tags.map((tag) => (
+                <TagBadge
+                  key={tag.id}
+                  tag={tag}
+                  size="sm"
+                  onClick={() => handleTagFilter(tag.id)}
+                />
+              ))}
+            </div>
+          );
+        },
+      }),
       columnHelper.display({
         id: 'actions',
         header: 'Actions',
@@ -368,6 +417,7 @@ export default function ExpensesTable({
       handleDeleteClick,
       handleCategoryFilter,
       handleSubcategoryFilter,
+      handleTagFilter,
       filters.categoryId,
       filters.subcategoryId,
     ],
@@ -487,6 +537,15 @@ export default function ExpensesTable({
           aria-label="Filter by item name"
         />
       </th>
+      {/* Tags column: Tag filter */}
+      <th className="filter-cell-overflow">
+        <TagFilterSelect
+          tags={allTags}
+          selectedTagIds={filters.tagIds || []}
+          onChange={handleTagFilterChange}
+          placeholder="Filter by tag..."
+        />
+      </th>
       {/* Actions: Clear button */}
       <th className="text-center">
         {hasActiveFilters && (
@@ -588,7 +647,7 @@ export default function ExpensesTable({
               <tbody>
                 {!data || data.data.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-4">
+                    <td colSpan={9} className="text-center py-4">
                       <h6 className="text-muted mb-1">No expenses found</h6>
                       <p className="text-muted small mb-0">
                         {hasActiveFilters
@@ -602,9 +661,14 @@ export default function ExpensesTable({
                     <tr
                       key={row.id}
                       onClick={(e) => {
-                        // Avoid triggering edit when clicking filter badges
+                        // Avoid triggering edit when clicking filter badges or tag badges
                         const target = e.target as HTMLElement;
-                        if (target.closest('button')) return;
+                        if (
+                          target.closest('button') ||
+                          target.closest('.tag-badge') ||
+                          target.closest('.category-badge')
+                        )
+                          return;
                         handleEdit(row.original);
                       }}
                       className="table-row-clickable cursor-pointer"

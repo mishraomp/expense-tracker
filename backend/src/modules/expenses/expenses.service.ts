@@ -58,8 +58,19 @@ export class ExpensesService {
         description: createExpenseDto.description,
         source: createExpenseDto.source || 'manual',
         status: 'confirmed',
+        ...(createExpenseDto.tagIds?.length && {
+          expenseTags: {
+            createMany: {
+              data: createExpenseDto.tagIds.map((tagId) => ({ tagId })),
+            },
+          },
+        }),
       },
-      include: { category: true, subcategory: true },
+      include: {
+        category: true,
+        subcategory: true,
+        expenseTags: { include: { tag: true } },
+      },
     });
 
     return ExpenseResponseDto.fromEntity(expense);
@@ -124,6 +135,16 @@ export class ExpensesService {
         });
       }
 
+      // Create tag associations
+      if (createExpenseDto.tagIds?.length) {
+        await tx.expenseTag.createMany({
+          data: createExpenseDto.tagIds.map((tagId) => ({
+            expenseId: newExpense.id,
+            tagId,
+          })),
+        });
+      }
+
       // Refetch with relations and items
       return tx.expense.findUnique({
         where: { id: newExpense.id },
@@ -135,6 +156,7 @@ export class ExpensesService {
             include: { category: true, subcategory: true },
             orderBy: { createdAt: 'asc' },
           },
+          expenseTags: { include: { tag: true } },
         },
       });
     });
@@ -210,6 +232,7 @@ export class ExpensesService {
       sortOrder = 'desc',
       sortBy = 'date',
       itemName,
+      tagIds,
     } = query;
     const skip = (page - 1) * pageSize;
 
@@ -230,6 +253,15 @@ export class ExpensesService {
         some: {
           name: { contains: itemName, mode: 'insensitive' },
           deletedAt: null,
+        },
+      };
+    }
+
+    // Tag filter - find expenses that have any of the specified tags
+    if (tagIds && tagIds.length > 0) {
+      where.expenseTags = {
+        some: {
+          tagId: { in: tagIds },
         },
       };
     }
@@ -264,7 +296,11 @@ export class ExpensesService {
     const [expenses, total, sumAgg] = await Promise.all([
       this.prisma.expense.findMany({
         where,
-        include: { category: true, subcategory: true },
+        include: {
+          category: true,
+          subcategory: true,
+          expenseTags: { include: { tag: true } },
+        },
         orderBy: { [sortField]: sortOrder },
         skip,
         take: pageSize,
@@ -345,6 +381,7 @@ export class ExpensesService {
           include: { category: true, subcategory: true },
           orderBy: { createdAt: 'asc' },
         },
+        expenseTags: { include: { tag: true } },
       },
     });
 
@@ -392,10 +429,53 @@ export class ExpensesService {
       data.description = updateExpenseDto.description;
     }
 
+    // Handle tag updates if provided
+    if (updateExpenseDto.tagIds !== undefined) {
+      // Use transaction to update expense and replace tags atomically
+      const expense = await this.prisma.$transaction(async (tx) => {
+        // Update expense fields
+        await tx.expense.update({
+          where: { id },
+          data,
+        });
+
+        // Delete existing tag associations
+        await tx.expenseTag.deleteMany({
+          where: { expenseId: id },
+        });
+
+        // Create new tag associations
+        if (updateExpenseDto.tagIds?.length) {
+          await tx.expenseTag.createMany({
+            data: updateExpenseDto.tagIds.map((tagId) => ({
+              expenseId: id,
+              tagId,
+            })),
+          });
+        }
+
+        // Refetch with relations
+        return tx.expense.findUnique({
+          where: { id },
+          include: {
+            category: true,
+            subcategory: true,
+            expenseTags: { include: { tag: true } },
+          },
+        });
+      });
+
+      return ExpenseResponseDto.fromEntity(expense!);
+    }
+
     const expense = await this.prisma.expense.update({
       where: { id },
       data,
-      include: { category: true, subcategory: true },
+      include: {
+        category: true,
+        subcategory: true,
+        expenseTags: { include: { tag: true } },
+      },
     });
 
     return ExpenseResponseDto.fromEntity(expense);
