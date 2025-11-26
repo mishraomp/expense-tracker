@@ -7,7 +7,10 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateExpenseItemDto } from './dto/create-expense-item.dto';
 import { UpdateExpenseItemDto } from './dto/update-expense-item.dto';
-import { ExpenseItemResponseDto, ExpenseItemListResponseDto } from './dto/expense-item-response.dto';
+import {
+  ExpenseItemResponseDto,
+  ExpenseItemListResponseDto,
+} from './dto/expense-item-response.dto';
 import { Decimal } from '@prisma/client/runtime/client.js';
 
 /**
@@ -34,7 +37,10 @@ export class ExpenseItemsService {
     createDto: CreateExpenseItemDto,
   ): Promise<ExpenseItemResponseDto> {
     // Verify expense exists and belongs to user
-    await this.verifyExpenseOwnership(userId, expenseId);
+    const expenseAmount = await this.verifyExpenseOwnership(userId, expenseId);
+
+    // Validate item sum won't exceed expense amount
+    await this.validateItemsSum(expenseId, expenseAmount, createDto.amount);
 
     // Validate subcategory belongs to category if both provided
     if (createDto.categoryId && createDto.subcategoryId) {
@@ -79,7 +85,11 @@ export class ExpenseItemsService {
     items: CreateExpenseItemDto[],
   ): Promise<ExpenseItemResponseDto[]> {
     // Verify expense exists and belongs to user
-    await this.verifyExpenseOwnership(userId, expenseId);
+    const expenseAmount = await this.verifyExpenseOwnership(userId, expenseId);
+
+    // Validate total of new items won't exceed expense amount
+    const totalNewAmount = items.reduce((sum, item) => sum + item.amount, 0);
+    await this.validateItemsSum(expenseId, expenseAmount, totalNewAmount);
 
     // Check combined limit
     const currentCount = await this.prisma.expenseItem.count({
@@ -152,7 +162,11 @@ export class ExpenseItemsService {
    * @param itemId - Item ID
    * @returns Item with relations
    */
-  async findOne(userId: string, expenseId: string, itemId: string): Promise<ExpenseItemResponseDto> {
+  async findOne(
+    userId: string,
+    expenseId: string,
+    itemId: string,
+  ): Promise<ExpenseItemResponseDto> {
     // Verify expense exists and belongs to user
     await this.verifyExpenseOwnership(userId, expenseId);
 
@@ -183,7 +197,7 @@ export class ExpenseItemsService {
     updateDto: UpdateExpenseItemDto,
   ): Promise<ExpenseItemResponseDto> {
     // Verify expense exists and belongs to user
-    await this.verifyExpenseOwnership(userId, expenseId);
+    const expenseAmount = await this.verifyExpenseOwnership(userId, expenseId);
 
     // Verify item exists
     const existing = await this.prisma.expenseItem.findFirst({
@@ -191,6 +205,11 @@ export class ExpenseItemsService {
     });
     if (!existing) {
       throw new NotFoundException(`Expense item with ID ${itemId} not found`);
+    }
+
+    // Validate amount update won't exceed expense total
+    if (updateDto.amount !== undefined) {
+      await this.validateItemsSum(expenseId, expenseAmount, updateDto.amount, itemId);
     }
 
     // Validate subcategory-category if updating either
@@ -275,11 +294,12 @@ export class ExpenseItemsService {
    * Verify that expense exists and belongs to user.
    * @throws NotFoundException if expense not found
    * @throws ForbiddenException if expense belongs to different user
+   * @returns The expense amount for validation purposes
    */
-  private async verifyExpenseOwnership(userId: string, expenseId: string): Promise<void> {
+  private async verifyExpenseOwnership(userId: string, expenseId: string): Promise<Decimal> {
     const expense = await this.prisma.expense.findUnique({
       where: { id: expenseId },
-      select: { userId: true, deletedAt: true },
+      select: { userId: true, deletedAt: true, amount: true },
     });
 
     if (!expense || expense.deletedAt) {
@@ -288,6 +308,42 @@ export class ExpenseItemsService {
 
     if (expense.userId !== userId) {
       throw new ForbiddenException('You do not have access to this expense');
+    }
+
+    return expense.amount;
+  }
+
+  /**
+   * Validate that adding/updating items won't exceed expense total.
+   * @param expenseId - Parent expense ID
+   * @param expenseAmount - Total expense amount
+   * @param additionalAmount - Amount being added (for new items or amount increase)
+   * @param excludeItemId - Item ID to exclude from current sum (for updates)
+   * @throws BadRequestException if sum would exceed expense amount
+   */
+  private async validateItemsSum(
+    expenseId: string,
+    expenseAmount: Decimal,
+    additionalAmount: number,
+    excludeItemId?: string,
+  ): Promise<void> {
+    // Get current items sum (excluding the item being updated if applicable)
+    const items = await this.prisma.expenseItem.findMany({
+      where: {
+        expenseId,
+        deletedAt: null,
+        ...(excludeItemId ? { id: { not: excludeItemId } } : {}),
+      },
+      select: { amount: true },
+    });
+
+    const currentSum = items.reduce((sum, item) => sum.add(item.amount), new Decimal(0));
+    const newSum = currentSum.add(new Decimal(additionalAmount));
+
+    if (newSum.greaterThan(expenseAmount)) {
+      throw new BadRequestException(
+        `Item total ($${newSum.toFixed(2)}) cannot exceed expense amount ($${expenseAmount.toFixed(2)})`,
+      );
     }
   }
 

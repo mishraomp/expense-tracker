@@ -187,3 +187,25 @@ export interface ItemSearchResponse {
   data: ItemSearchResult[];
   total: number;
 }
+
+// Subcategory line items types
+export interface SubcategoryLineItem {
+  id: string;
+  name: string;
+  amount: string;
+  expenseId: string;
+  expenseDate: string;
+  expenseDescription: string | null;
+  source: 'item';
+}
+
+export interface SubcategoryLineItemsQuery {
+  subcategoryId: string;
+  startDate: string;
+  endDate: string;
+}
+
+export interface SubcategoryLineItemsResponse {
+  items: SubcategoryLineItem[];
+  total: string;
+}

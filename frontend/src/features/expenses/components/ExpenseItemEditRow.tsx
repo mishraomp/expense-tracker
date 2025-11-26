@@ -8,6 +8,8 @@ interface ExpenseItemEditRowProps {
   item: ExpenseItem;
   expenseId: string;
   categories: Category[];
+  expenseAmount: number;
+  currentItemsTotalExcludingThis: number;
   onUpdated?: () => void;
 }
 
@@ -19,6 +21,8 @@ export default function ExpenseItemEditRow({
   item,
   expenseId,
   categories,
+  expenseAmount,
+  currentItemsTotalExcludingThis,
   onUpdated,
 }: ExpenseItemEditRowProps) {
   const [isEditing, setIsEditing] = useState(false);
@@ -71,6 +75,11 @@ export default function ExpenseItemEditRow({
 
   const isLoading = updateMutation.isPending || deleteMutation.isPending;
 
+  // Validation: Check if edited amount would exceed expense total
+  const remainingBudget = expenseAmount - currentItemsTotalExcludingThis;
+  const parsedEditAmount = parseFloat(editAmount) || 0;
+  const wouldExceedBudget = parsedEditAmount > remainingBudget;
+
   // Delete confirmation dialog
   if (showDeleteConfirm) {
     return (
@@ -121,11 +130,15 @@ export default function ExpenseItemEditRow({
             <input
               type="number"
               step="0.01"
-              className="form-control"
+              className={`form-control ${wouldExceedBudget ? 'is-invalid' : ''}`}
               value={editAmount}
               onChange={(e) => setEditAmount(e.target.value)}
               disabled={isLoading}
+              title={wouldExceedBudget ? `Max: $${remainingBudget.toFixed(2)}` : ''}
             />
+            {wouldExceedBudget && (
+              <div className="invalid-feedback">Max: ${remainingBudget.toFixed(2)}</div>
+            )}
           </div>
         </td>
         <td>
@@ -163,8 +176,8 @@ export default function ExpenseItemEditRow({
               type="button"
               className="btn btn-success"
               onClick={handleSave}
-              disabled={isLoading || !editName.trim() || !editAmount}
-              title="Save"
+              disabled={isLoading || !editName.trim() || !editAmount || wouldExceedBudget}
+              title={wouldExceedBudget ? 'Amount exceeds remaining budget' : 'Save'}
             >
               <i className="bi bi-check"></i>
             </button>

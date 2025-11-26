@@ -17,6 +17,8 @@ import type {
   TopExpenseItemsQuery,
   ItemSearchQuery,
   ItemSearchResponse,
+  SubcategoryLineItemsQuery,
+  SubcategoryLineItemsResponse,
 } from '../types/reports.types';
 
 export const reportsApi = {
@@ -124,6 +126,23 @@ export const reportsApi = {
     const { data } = await api.get<ItemSearchResponse>('/reports/items/search', {
       params: query,
     });
+    return data;
+  },
+
+  /**
+   * Get line items for a specific subcategory within date range.
+   * Returns both direct expense items and expenses with the subcategory.
+   */
+  getSubcategoryLineItems: async (
+    query: SubcategoryLineItemsQuery,
+  ): Promise<SubcategoryLineItemsResponse> => {
+    const { subcategoryId, startDate, endDate } = query;
+    const { data } = await api.get<SubcategoryLineItemsResponse>(
+      `/reports/subcategory/${subcategoryId}/items`,
+      {
+        params: { startDate, endDate },
+      },
+    );
     return data;
   },
 };

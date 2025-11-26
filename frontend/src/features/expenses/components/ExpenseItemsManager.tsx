@@ -7,6 +7,7 @@ import ExpenseItemForm from './ExpenseItemForm';
 
 interface ExpenseItemsManagerProps {
   expenseId: string;
+  expenseAmount: number;
   categories: Category[];
   defaultCategoryId?: string;
   defaultSubcategoryId?: string;
@@ -18,6 +19,7 @@ interface ExpenseItemsManagerProps {
  */
 export default function ExpenseItemsManager({
   expenseId,
+  expenseAmount,
   categories,
   defaultCategoryId,
   defaultSubcategoryId,
@@ -79,6 +81,8 @@ export default function ExpenseItemsManager({
                   item={item}
                   expenseId={expenseId}
                   categories={categories}
+                  expenseAmount={expenseAmount}
+                  currentItemsTotalExcludingThis={totalAmount - item.amount}
                   onUpdated={() => refetch()}
                 />
               ))}
@@ -111,6 +115,8 @@ export default function ExpenseItemsManager({
             disabled={createItem.isPending}
             defaultCategoryId={defaultCategoryId}
             defaultSubcategoryId={defaultSubcategoryId}
+            expenseAmount={expenseAmount}
+            currentItemsTotal={totalAmount}
           />
           <div className="mt-1 text-end">
             <button

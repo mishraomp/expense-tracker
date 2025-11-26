@@ -217,7 +217,7 @@ export const useDeleteExpenseItem = () => {
             data: old.data.filter((item) => item.id !== itemId),
             summary: {
               ...old.summary,
-              itemCount: old.summary.itemCount - 1,
+              count: old.summary.count - 1,
               totalAmount:
                 old.summary.totalAmount -
                 (old.data.find((item) => item.id === itemId)?.amount || 0),

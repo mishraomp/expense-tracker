@@ -9,6 +9,7 @@ import type {
   IncomeVsExpenseQuery,
   TopExpenseItemsQuery,
   ItemSearchQuery,
+  SubcategoryLineItemsQuery,
 } from '../types/reports.types';
 
 export const useSpendingOverTime = (query: SpendingOverTimeQuery) => {
@@ -92,6 +93,18 @@ export const useSearchExpenseItems = (query: ItemSearchQuery) => {
     queryFn: () => reportsApi.searchExpenseItems(query),
     staleTime: 2 * 60 * 1000, // 2 minutes for search results
     enabled: !!query.q && query.q.length >= 2, // Only search with at least 2 characters
+  });
+};
+
+/**
+ * Hook to fetch line items for a specific subcategory within date range.
+ */
+export const useSubcategoryLineItems = (query: SubcategoryLineItemsQuery) => {
+  return useQuery({
+    queryKey: ['reports', 'subcategory', query.subcategoryId, 'items', query],
+    queryFn: () => reportsApi.getSubcategoryLineItems(query),
+    staleTime: 5 * 60 * 1000,
+    enabled: !!query.subcategoryId && !!query.startDate && !!query.endDate,
   });
 };
 // No-op, ensure file saved

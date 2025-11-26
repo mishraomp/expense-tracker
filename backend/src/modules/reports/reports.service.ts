@@ -177,16 +177,25 @@ export class ReportsService {
   > {
     const { startDate, endDate, categoryId, subcategoryId } = q;
 
-    const filters: Prisma.Sql[] = [
+    // Build base filters for expenses
+    const baseExpenseFilters: Prisma.Sql[] = [
       Prisma.sql`e."user_id" = ${userId}::uuid`,
       Prisma.sql`e."deleted_at" IS NULL`,
-      Prisma.sql`e."subcategory_id" IS NOT NULL`,
     ];
-    if (categoryId) filters.push(Prisma.sql`e."category_id" = ${categoryId}::uuid`);
-    if (subcategoryId) filters.push(Prisma.sql`e."subcategory_id" = ${subcategoryId}::uuid`);
 
-    const where = Prisma.sql`WHERE ${Prisma.join(filters, ' AND ')} AND e."date" BETWEEN ${startDate}::date AND ${endDate}::date`;
+    // Build filters for expense items
+    const itemFilters: Prisma.Sql[] = [
+      Prisma.sql`e."user_id" = ${userId}::uuid`,
+      Prisma.sql`e."deleted_at" IS NULL`,
+      Prisma.sql`ei."deleted_at" IS NULL`,
+      Prisma.sql`ei."subcategory_id" IS NOT NULL`,
+    ];
+    if (categoryId) itemFilters.push(Prisma.sql`ei."category_id" = ${categoryId}::uuid`);
+    if (subcategoryId) itemFilters.push(Prisma.sql`ei."subcategory_id" = ${subcategoryId}::uuid`);
 
+    const itemWhere = Prisma.sql`WHERE ${Prisma.join(itemFilters, ' AND ')} AND e."date" BETWEEN ${startDate}::date AND ${endDate}::date`;
+
+    // Union: expense items with subcategory + expenses with subcategory that DON'T have items with that subcategory
     const rows: Array<{
       subcategory_id: string;
       subcategory_name: string;
@@ -196,15 +205,39 @@ export class ReportsService {
       amount: string;
     }> = await this.prisma.$queryRaw(
       Prisma.sql`
+        WITH combined_spending AS (
+          -- Expense items assigned to subcategories (preferred when present)
+          SELECT ei."subcategory_id", ei."amount"
+          FROM "expense_items" ei
+          JOIN "expenses" e ON e."id" = ei."expense_id"
+          ${itemWhere}
+          
+          UNION ALL
+          
+          -- Expenses directly assigned to subcategories, but ONLY if they don't have
+          -- expense_items with that same subcategory (to avoid double counting)
+          SELECT e."subcategory_id", e."amount"
+          FROM "expenses" e
+          WHERE ${Prisma.join(baseExpenseFilters, ' AND ')}
+            AND e."subcategory_id" IS NOT NULL
+            ${categoryId ? Prisma.sql`AND e."category_id" = ${categoryId}::uuid` : Prisma.empty}
+            ${subcategoryId ? Prisma.sql`AND e."subcategory_id" = ${subcategoryId}::uuid` : Prisma.empty}
+            AND e."date" BETWEEN ${startDate}::date AND ${endDate}::date
+            AND NOT EXISTS (
+              SELECT 1 FROM "expense_items" ei 
+              WHERE ei."expense_id" = e."id" 
+                AND ei."deleted_at" IS NULL
+                AND ei."subcategory_id" = e."subcategory_id"
+            )
+        )
         SELECT s."id" as subcategory_id, s."name" as subcategory_name,
                c."id" as category_id, c."name" as category_name, c."color_code",
-               COALESCE(SUM(e."amount"),0)::text as amount
-        FROM "expenses" e
-        JOIN "subcategories" s ON s."id" = e."subcategory_id"
+               COALESCE(SUM(cs."amount"),0)::text as amount
+        FROM combined_spending cs
+        JOIN "subcategories" s ON s."id" = cs."subcategory_id"
         JOIN "categories" c ON c."id" = s."category_id"
-        ${where}
         GROUP BY s."id", s."name", c."id", c."name", c."color_code"
-        ORDER BY COALESCE(SUM(e."amount"),0) DESC
+        ORDER BY COALESCE(SUM(cs."amount"),0) DESC
       `,
     );
 
@@ -531,7 +564,8 @@ export class ReportsService {
 
     if (startDate) filters.push(Prisma.sql`e."date" >= ${startDate}::date`);
     if (endDate) filters.push(Prisma.sql`e."date" <= ${endDate}::date`);
-    if (categoryId) filters.push(Prisma.sql`COALESCE(ei."category_id", e."category_id") = ${categoryId}::uuid`);
+    if (categoryId)
+      filters.push(Prisma.sql`COALESCE(ei."category_id", e."category_id") = ${categoryId}::uuid`);
 
     const where = Prisma.sql`WHERE ${Prisma.join(filters, ' AND ')}`;
 
@@ -575,6 +609,76 @@ export class ReportsService {
   }
 
   /**
+   * Get expense line items for a specific subcategory within a date range.
+   * Returns ONLY expense_items (line items), NOT expenses from the main table.
+   */
+  async getSubcategoryLineItems(
+    userId: string,
+    params: {
+      subcategoryId: string;
+      startDate: string;
+      endDate: string;
+    },
+  ): Promise<{
+    items: Array<{
+      id: string;
+      name: string;
+      amount: string;
+      expenseId: string;
+      expenseDate: string;
+      expenseDescription: string | null;
+      source: 'item';
+    }>;
+    total: string;
+  }> {
+    const { subcategoryId, startDate, endDate } = params;
+
+    // Get ONLY expense items with this subcategory (not expenses from main table)
+    const itemRows: Array<{
+      id: string;
+      name: string;
+      amount: string;
+      expense_id: string;
+      expense_date: Date;
+      expense_description: string | null;
+    }> = await this.prisma.$queryRaw(
+      Prisma.sql`
+        SELECT 
+          ei."id",
+          ei."name",
+          ei."amount"::text as amount,
+          ei."expense_id",
+          e."date" as expense_date,
+          e."description" as expense_description
+        FROM "expense_items" ei
+        JOIN "expenses" e ON e."id" = ei."expense_id"
+        WHERE e."user_id" = ${userId}::uuid
+          AND e."deleted_at" IS NULL
+          AND ei."deleted_at" IS NULL
+          AND ei."subcategory_id" = ${subcategoryId}::uuid
+          AND e."date" BETWEEN ${startDate}::date AND ${endDate}::date
+        ORDER BY e."date" DESC, ei."created_at" DESC
+      `,
+    );
+
+    // Format results - only line items
+    const items = itemRows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      amount: r.amount,
+      expenseId: r.expense_id,
+      expenseDate: r.expense_date.toISOString().split('T')[0],
+      expenseDescription: r.expense_description,
+      source: 'item' as const,
+    }));
+
+    // Calculate total
+    const total = items.reduce((sum, item) => sum + parseFloat(item.amount), 0).toFixed(2);
+
+    return { items, total };
+  }
+
+  /**
    * Search expense items by name.
    * Supports partial matching with pagination.
    */
@@ -604,7 +708,8 @@ export class ReportsService {
 
     if (startDate) filters.push(Prisma.sql`e."date" >= ${startDate}::date`);
     if (endDate) filters.push(Prisma.sql`e."date" <= ${endDate}::date`);
-    if (categoryId) filters.push(Prisma.sql`COALESCE(ei."category_id", e."category_id") = ${categoryId}::uuid`);
+    if (categoryId)
+      filters.push(Prisma.sql`COALESCE(ei."category_id", e."category_id") = ${categoryId}::uuid`);
 
     const where = Prisma.sql`WHERE ${Prisma.join(filters, ' AND ')}`;
 

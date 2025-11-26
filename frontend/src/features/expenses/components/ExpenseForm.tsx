@@ -316,6 +316,8 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
                       disabled={isSubmitting || categoriesLoading}
                       defaultCategoryId={selectedCategoryId}
                       defaultSubcategoryId={watch('subcategoryId') || undefined}
+                      expenseAmount={watch('amount')}
+                      currentItemsTotal={items.reduce((sum, i) => sum + i.amount, 0)}
                     />
                     <ExpenseItemList
                       items={items}
@@ -333,6 +335,7 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
               <div className="col-12">
                 <ExpenseItemsManager
                   expenseId={expense.id}
+                  expenseAmount={expense.amount}
                   categories={categories || []}
                   defaultCategoryId={selectedCategoryId}
                   defaultSubcategoryId={watch('subcategoryId') || undefined}

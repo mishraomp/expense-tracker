@@ -15,6 +15,10 @@ interface ExpenseItemFormProps {
   defaultCategoryId?: string;
   /** Default subcategory from parent expense */
   defaultSubcategoryId?: string;
+  /** Parent expense amount for validation */
+  expenseAmount?: number;
+  /** Current total of existing items */
+  currentItemsTotal?: number;
 }
 
 /**
@@ -27,6 +31,8 @@ export default function ExpenseItemForm({
   disabled = false,
   defaultCategoryId,
   defaultSubcategoryId,
+  expenseAmount,
+  currentItemsTotal = 0,
 }: ExpenseItemFormProps) {
   const {
     register,
@@ -35,6 +41,8 @@ export default function ExpenseItemForm({
     reset,
     watch,
     setValue,
+    setError,
+    clearErrors,
   } = useForm<CreateExpenseItemInput>({
     defaultValues: {
       categoryId: defaultCategoryId,
@@ -43,7 +51,12 @@ export default function ExpenseItemForm({
   });
 
   const selectedCategoryId = watch('categoryId');
+  const itemAmount = watch('amount');
   const previousCategoryIdRef = useRef<string | undefined>(undefined);
+
+  // Calculate remaining budget for validation
+  const remainingBudget = expenseAmount ? expenseAmount - currentItemsTotal : undefined;
+  const wouldExceedBudget = remainingBudget !== undefined && itemAmount > remainingBudget;
 
   // Clear subcategory when category changes
   useEffect(() => {
@@ -69,7 +82,17 @@ export default function ExpenseItemForm({
     }
   }, [defaultSubcategoryId, setValue, watch]);
 
-  const onSubmit = (data: CreateExpenseItemInput) => {
+  const handleAddItem = handleSubmit((data: CreateExpenseItemInput) => {
+    // Validate amount won't exceed expense total
+    if (remainingBudget !== undefined && data.amount > remainingBudget) {
+      setError('amount', {
+        type: 'manual',
+        message: `Exceeds remaining $${remainingBudget.toFixed(2)}`,
+      });
+      return;
+    }
+    clearErrors('amount');
+
     onAddItem({
       name: data.name.trim(),
       amount: data.amount,
@@ -85,10 +108,18 @@ export default function ExpenseItemForm({
       subcategoryId: watch('subcategoryId'),
       notes: '',
     });
+  });
+
+  // Handle Enter key to add item (since we're not using a form element)
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleAddItem();
+    }
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="p-2 bg-light rounded border">
+    <div className="p-2 bg-light rounded border" onKeyDown={handleKeyDown}>
       <div className="row g-2 align-items-end">
         <div className="col-md-3">
           <label htmlFor="itemName" className="form-label small mb-1">
@@ -111,16 +142,21 @@ export default function ExpenseItemForm({
         <div className="col-md-2">
           <label htmlFor="itemAmount" className="form-label small mb-1">
             Amount <span className="text-danger">*</span>
+            {remainingBudget !== undefined && (
+              <span className={`ms-1 ${remainingBudget <= 0 ? 'text-danger' : 'text-muted'}`}>
+                (${remainingBudget.toFixed(2)} left)
+              </span>
+            )}
           </label>
           <div className="input-group input-group-sm">
             <span className="input-group-text">$</span>
             <input
               type="number"
               step="0.01"
-              className={`form-control ${errors.amount ? 'is-invalid' : ''}`}
+              className={`form-control ${errors.amount || wouldExceedBudget ? 'is-invalid' : ''}`}
               id="itemAmount"
               placeholder="0.00"
-              disabled={disabled}
+              disabled={disabled || remainingBudget === 0}
               {...register('amount', {
                 required: 'Amount required',
                 min: { value: 0.01, message: 'Must be positive' },
@@ -128,6 +164,9 @@ export default function ExpenseItemForm({
               })}
             />
             {errors.amount && <div className="invalid-feedback">{errors.amount.message}</div>}
+            {wouldExceedBudget && !errors.amount && (
+              <div className="invalid-feedback d-block">Exceeds remaining budget</div>
+            )}
           </div>
         </div>
 
@@ -181,15 +220,22 @@ export default function ExpenseItemForm({
 
         <div className="col-md-1">
           <button
-            type="submit"
+            type="button"
             className="btn btn-primary btn-sm w-100"
-            disabled={disabled}
-            title="Add item"
+            disabled={disabled || wouldExceedBudget || remainingBudget === 0}
+            title={
+              wouldExceedBudget
+                ? 'Amount exceeds remaining budget'
+                : remainingBudget === 0
+                  ? 'No budget remaining'
+                  : 'Add item'
+            }
+            onClick={handleAddItem}
           >
             <i className="bi bi-plus-lg"></i>
           </button>
         </div>
       </div>
-    </form>
+    </div>
   );
 }

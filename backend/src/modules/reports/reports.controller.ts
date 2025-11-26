@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Request } from '@nestjs/common';
+import { Controller, Get, Query, Request, Param } from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { ReportsService } from './reports.service';
 import { SpendingOverTimeQueryDto } from './dto/spending-over-time.dto';
@@ -88,6 +88,25 @@ export class ReportsController {
       endDate,
       categoryId,
       limit: limit ? parseInt(limit, 10) : 10,
+    });
+  }
+
+  /**
+   * GET /reports/subcategory/:id/items
+   * Get line items for a specific subcategory within date range
+   */
+  @Get('subcategory/:id/items')
+  getSubcategoryLineItems(
+    @Param('id') subcategoryId: string,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @Request() req,
+  ) {
+    const userId = req.user.sub;
+    return this.reportsService.getSubcategoryLineItems(userId, {
+      subcategoryId,
+      startDate,
+      endDate,
     });
   }
 
