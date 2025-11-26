@@ -16,21 +16,21 @@ export const BulkMappingSuggestions: React.FC<BulkMappingSuggestionsProps> = ({
   return (
     <div className="bulk-mapping-suggestions">
       <h4>File Mapping</h4>
-      <p className="hint">
+      <p className="hint text-muted small">
         Optionally map each file to a specific {recordType} record. Files without mapping will be
         skipped.
       </p>
 
       <div className="mapping-list">
         {files.map((file, index) => (
-          <div key={index} className="mapping-row">
-            <span className="file-name">{file.name}</span>
+          <div key={index} className="mapping-row d-flex align-items-center mb-2">
+            <span className="file-name text-truncate">{file.name}</span>
             <input
               type="text"
+              className="form-control form-control-sm mapping-input"
               placeholder={`${recordType} ID (optional)`}
               value={recordIds[index] || ''}
               onChange={(e) => onMappingChange(index, e.target.value || undefined)}
-              style={{ marginLeft: '10px', padding: '5px', width: '200px' }}
             />
           </div>
         ))}

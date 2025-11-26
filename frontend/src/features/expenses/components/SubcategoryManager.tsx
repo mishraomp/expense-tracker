@@ -208,7 +208,7 @@ export default function SubcategoryManager({ category }: SubcategoryManagerProps
                   <div className="d-flex flex-column">
                     <span className="small">{sub.name}</span>
                     {sub.budgetAmount && (
-                      <span className="text-muted" style={{ fontSize: '0.75rem' }}>
+                      <span className="text-muted text-xs">
                         Budget: ${sub.budgetAmount} ({sub.budgetPeriod})
                       </span>
                     )}

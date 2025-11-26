@@ -79,10 +79,7 @@ export function Layout({ children }: LayoutProps) {
                     onClick={() => setShowUserModal(true)}
                     title={username()}
                   >
-                    <span
-                      className="rounded-circle bg-light text-primary fw-bold d-inline-flex justify-content-center align-items-center me-2"
-                      style={{ width: 28, height: 28, fontSize: 14 }}
-                    >
+                    <span className="rounded-circle bg-light text-primary fw-bold d-inline-flex justify-content-center align-items-center me-2 avatar-sm">
                       {initials}
                     </span>
                     <span className="text-light small">{username()}</span>
@@ -101,7 +98,7 @@ export function Layout({ children }: LayoutProps) {
         </main>
         {isAuthenticated && showUserModal && (
           <>
-            <div className="modal fade show" role="dialog" style={{ display: 'block' }}>
+            <div className="modal fade show d-block" role="dialog">
               <div className="modal-dialog modal-dialog-centered">
                 <div className="modal-content">
                   <div className="modal-header">
@@ -115,10 +112,7 @@ export function Layout({ children }: LayoutProps) {
                   </div>
                   <div className="modal-body">
                     <div className="d-flex align-items-center mb-3">
-                      <span
-                        className="rounded-circle bg-primary text-light fw-bold d-inline-flex justify-content-center align-items-center me-3"
-                        style={{ width: 40, height: 40 }}
-                      >
+                      <span className="rounded-circle bg-primary text-light fw-bold d-inline-flex justify-content-center align-items-center me-3 avatar-md">
                         {initials}
                       </span>
                       <div>

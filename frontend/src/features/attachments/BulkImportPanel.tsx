@@ -111,7 +111,7 @@ export const BulkImportPanel: React.FC<BulkImportPanelProps> = ({ recordType, on
               multiple
               accept=".pdf,.jpg,.jpeg,.png,.csv"
               onChange={handleFileSelection}
-              style={{ display: 'none' }}
+              className="file-input-hidden"
             />
             <button onClick={() => fileInputRef.current?.click()}>Select Files</button>
             <span>{selectedFiles.length} files selected</span>

@@ -39,55 +39,56 @@ export const BulkProgress: React.FC<BulkProgressProps> = ({ job }) => {
     }
   };
 
-  const getStatusColor = () => {
+  const getStatusClass = () => {
     switch (job.status) {
       case 'completed':
-        return 'green';
+        return 'text-success';
       case 'failed':
-        return 'red';
+        return 'text-danger';
       case 'canceled':
-        return 'orange';
+        return 'text-warning';
       default:
-        return 'blue';
+        return 'text-primary';
+    }
+  };
+
+  const getProgressClass = () => {
+    switch (job.status) {
+      case 'completed':
+        return 'bg-success';
+      case 'failed':
+        return 'bg-danger';
+      case 'canceled':
+        return 'bg-warning';
+      default:
+        return 'bg-primary';
     }
   };
 
   return (
     <div className="bulk-progress">
       <h4>
-        Job Status: <span style={{ color: getStatusColor() }}>{getStatusLabel()}</span>
+        Job Status: <span className={getStatusClass()}>{getStatusLabel()}</span>
       </h4>
 
-      <div
-        className="progress-bar"
-        style={{ width: '100%', backgroundColor: '#e0e0e0', borderRadius: '4px', height: '20px' }}
-      >
-        <div
-          className="progress-fill"
-          style={{
-            width: `${progress}%`,
-            backgroundColor: getStatusColor(),
-            height: '100%',
-            borderRadius: '4px',
-            transition: 'width 0.3s ease',
-          }}
-        />
+      <div className="progress-track">
+        <div className={`progress-fill ${getProgressClass()}`} style={{ width: `${progress}%` }} />
       </div>
 
-      <div className="progress-stats">
-        <p>Total: {job.totalFiles}</p>
-        <p>Uploaded: {job.uploadedCount || 0}</p>
-        <p>Duplicates: {job.duplicateCount || 0}</p>
-        <p>Errors: {job.errorCount || 0}</p>
-        <p>Skipped: {job.skippedCount || 0}</p>
+      <div className="progress-stats mt-2">
+        <p className="mb-1">Total: {job.totalFiles}</p>
+        <p className="mb-1">Uploaded: {job.uploadedCount || 0}</p>
+        <p className="mb-1">Duplicates: {job.duplicateCount || 0}</p>
+        <p className="mb-1">Errors: {job.errorCount || 0}</p>
+        <p className="mb-1">Skipped: {job.skippedCount || 0}</p>
       </div>
 
       {job.status === 'completed' && (
-        <div className="completion-message">✓ Import completed successfully!</div>
+        <div className="alert alert-success mt-2">✓ Import completed successfully!</div>
       )}
 
       {job.status === 'failed' && (
-        <div className="error-message">✗ Import failed. Please try again.</div>
+        <div className="alert alert-danger mt-2">✗ Import failed. Please try again.</div>
       )}
     </div>
   );

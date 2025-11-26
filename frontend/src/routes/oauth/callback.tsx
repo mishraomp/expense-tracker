@@ -47,7 +47,7 @@ function OAuthCallbackPage() {
   }, [code, errorParam, stateParam, handleCallback, navigate]);
 
   return (
-    <div className="container py-5" style={{ maxWidth: 560 }}>
+    <div className="container py-5 mw-35 mx-auto">
       <h3 className="mb-3">Google Drive Connection</h3>
       <p className="text-muted mb-4">{message}</p>
       {status === 'pending' && (

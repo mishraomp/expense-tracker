@@ -144,13 +144,7 @@ export default function ExpensesTable({
             if (!rawIcon) return null;
             // URL image
             if (/^https?:\/\//.test(rawIcon)) {
-              return (
-                <img
-                  src={rawIcon}
-                  alt="icon"
-                  style={{ width: '1em', height: '1em', verticalAlign: 'middle' }}
-                />
-              );
+              return <img src={rawIcon} alt="icon" className="icon-sm" />;
             }
             // Bootstrap Icons class name e.g. 'bi-bank'
             if (/^bi-[a-z0-9-]+$/i.test(rawIcon)) {
@@ -166,11 +160,8 @@ export default function ExpensesTable({
               const isPrivateUse = codePoint >= 0xe000 && codePoint <= 0xf8ff;
               return (
                 <span
-                  style={{
-                    fontFamily: isPrivateUse ? 'bootstrap-icons' : undefined,
-                    display: 'inline-block',
-                    lineHeight: 1,
-                  }}
+                  className="d-inline-block lh-1"
+                  style={isPrivateUse ? { fontFamily: 'bootstrap-icons' } : undefined}
                 >
                   {decoded}
                 </span>
@@ -188,20 +179,11 @@ export default function ExpensesTable({
             <button
               type="button"
               onClick={(e) => handleCategoryFilter(category.id, e)}
-              className={`badge text-white d-inline-flex align-items-center gap-1 border-0 text-truncate ${active ? 'shadow-sm' : ''}`}
-              style={{
-                backgroundColor: bgColor,
-                cursor: 'pointer',
-                outline: active ? '2px solid #0d6efd' : 'none',
-                maxWidth: '120px',
-              }}
+              className={`badge text-white d-inline-flex align-items-center gap-1 category-badge text-truncate ${active ? 'shadow-sm category-badge--active' : ''}`}
+              style={{ backgroundColor: bgColor }}
               title={active ? 'Clear category filter' : `Filter by ${categoryName}`}
             >
-              {rawIcon && (
-                <span className="me-1" style={{ fontSize: '1.1em', lineHeight: 1 }}>
-                  {renderIcon()}
-                </span>
-              )}
+              {rawIcon && <span className="me-1 category-badge-icon">{renderIcon()}</span>}
               <span className="text-truncate">{categoryName}</span>
               {active && <i className="bi bi-x ms-1" aria-label="Clear" />}
             </button>
@@ -222,14 +204,8 @@ export default function ExpensesTable({
             <button
               type="button"
               onClick={(e) => handleSubcategoryFilter(subcategory.id, row.original.category?.id, e)}
-              className={`badge text-white border-0 text-truncate ${active ? 'shadow-sm' : ''}`}
-              style={{
-                backgroundColor: bgColor,
-                opacity: 0.75,
-                cursor: 'pointer',
-                outline: active ? '2px solid #0d6efd' : 'none',
-                maxWidth: '120px',
-              }}
+              className={`badge text-white category-badge badge-subcategory text-truncate ${active ? 'shadow-sm category-badge--active' : ''}`}
+              style={{ backgroundColor: bgColor }}
               title={active ? 'Clear subcategory filter' : `Filter by ${subcategoryName}`}
             >
               <span className="text-truncate">{subcategoryName}</span>
@@ -243,11 +219,7 @@ export default function ExpensesTable({
         cell: (info) => {
           const desc = info.getValue() || '-';
           return (
-            <span
-              className="d-inline-block text-truncate"
-              style={{ maxWidth: '200px' }}
-              title={desc}
-            >
+            <span className="d-inline-block text-truncate mw-12" title={desc}>
               {desc}
             </span>
           );
@@ -384,15 +356,12 @@ export default function ExpensesTable({
         </div>
         <div className="card-body p-0">
           <div className="table-responsive">
-            <table className="table table-hover table-sm mb-0" style={{ tableLayout: 'auto' }}>
+            <table className="table table-hover table-sm mb-0 table-auto">
               <thead>
                 {table.getHeaderGroups().map((headerGroup) => (
                   <tr key={headerGroup.id}>
                     {headerGroup.headers.map((header) => (
-                      <th
-                        key={header.id}
-                        className="user-select-none"
-                      >
+                      <th key={header.id} className="user-select-none">
                         {header.isPlaceholder ? null : (
                           <div
                             {...{
@@ -428,8 +397,7 @@ export default function ExpensesTable({
                       if (target.closest('button')) return;
                       handleEdit(row.original);
                     }}
-                    style={{ cursor: 'pointer' }}
-                    className="table-row-clickable"
+                    className="table-row-clickable cursor-pointer"
                     aria-label={`Edit expense from ${row.original.date}`}
                   >
                     {row.getVisibleCells().map((cell) => (
@@ -453,8 +421,7 @@ export default function ExpensesTable({
                   </label>
                   <select
                     id="pageSize"
-                    className="form-select form-select-sm"
-                    style={{ width: 'auto' }}
+                    className="form-select form-select-sm w-auto"
                     value={pagination.pageSize}
                     onChange={(e) => {
                       const newSize = Number(e.target.value);

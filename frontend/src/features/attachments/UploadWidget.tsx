@@ -229,7 +229,7 @@ export const UploadWidget: React.FC<UploadWidgetProps> = ({
           multiple
           accept={allowedMimeTypes.join(',')}
           onChange={handleFileSelect}
-          style={{ display: 'none' }}
+          className="file-input-hidden"
           disabled={isUploading || files.length >= maxFiles}
           aria-label="File input"
         />

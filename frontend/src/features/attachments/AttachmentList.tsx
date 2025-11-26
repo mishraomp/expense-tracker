@@ -161,7 +161,7 @@ export const AttachmentList: React.FC<AttachmentListProps> = ({
                       {isReplacing === attachment.id ? '⏳ Replacing...' : '🔄 Replace'}
                       <input
                         type="file"
-                        style={{ display: 'none' }}
+                        className="file-input-hidden"
                         onChange={(e) => handleReplace(attachment.id, e)}
                         disabled={isReplacing === attachment.id}
                       />

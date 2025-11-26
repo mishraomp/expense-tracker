@@ -124,8 +124,8 @@ export const SpendingOverTimeChart = ({ data, interval }: SpendingOverTimeChartP
   }
 
   return (
-    <div ref={containerRef} style={{ width: '100%' }}>
-      <svg ref={svgRef} style={{ width: '100%', height: 'auto' }}></svg>
+    <div ref={containerRef} className="chart-container">
+      <svg ref={svgRef} className="chart-svg"></svg>
     </div>
   );
 };

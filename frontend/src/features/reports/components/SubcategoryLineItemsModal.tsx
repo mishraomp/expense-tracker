@@ -27,11 +27,10 @@ export const SubcategoryLineItemsModal = ({
 
   return (
     <div
-      className="modal modal-slide show d-block"
+      className="modal modal-slide show d-block modal-backdrop-custom"
       aria-modal="true"
       role="dialog"
       aria-labelledby="subcategoryLineItemsLabel"
-      style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
     >
       <div className="modal-dialog modal-lg modal-dialog-scrollable">
         <div className="modal-content">

@@ -43,31 +43,28 @@ export default function ExpenseItemList({
         </small>
       </div>
       <div className="table-responsive">
-        <table className="table table-sm table-borderless mb-0">
+        <table className="table table-sm table-borderless mb-0 expense-item-table">
           <thead className="table-light">
             <tr>
-              <th style={{ width: '30%' }}>Name</th>
-              <th style={{ width: '15%' }} className="text-end">
-                Amount
-              </th>
-              <th style={{ width: '20%' }}>Category</th>
-              <th style={{ width: '25%' }}>Notes</th>
-              <th style={{ width: '10%' }}></th>
+              <th className="col-name">Name</th>
+              <th className="col-amount text-end">Amount</th>
+              <th className="col-category">Category</th>
+              <th className="col-notes">Notes</th>
+              <th className="col-actions"></th>
             </tr>
           </thead>
           <tbody>
             {items.map((item, index) => (
               <tr key={index}>
-                <td className="text-truncate" style={{ maxWidth: '150px' }} title={item.name}>
+                <td className="text-truncate cell-truncate-md" title={item.name}>
                   {item.name}
                 </td>
                 <td className="text-end">${item.amount.toFixed(2)}</td>
-                <td className="text-truncate" style={{ maxWidth: '100px' }}>
+                <td className="text-truncate cell-truncate-sm">
                   {getCategoryName(item.categoryId)}
                 </td>
                 <td
-                  className="text-truncate text-muted small"
-                  style={{ maxWidth: '150px' }}
+                  className="text-truncate text-muted small cell-truncate-md"
                   title={item.notes || ''}
                 >
                   {item.notes || '-'}

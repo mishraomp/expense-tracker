@@ -62,16 +62,14 @@ export default function ExpenseItemsManager({
 
       {items.length > 0 && (
         <div className="table-responsive mb-2">
-          <table className="table table-sm table-hover mb-0">
+          <table className="table table-sm table-hover mb-0 expense-item-table">
             <thead className="table-light">
               <tr>
-                <th style={{ width: '30%' }}>Name</th>
-                <th style={{ width: '15%' }} className="text-end">
-                  Amount
-                </th>
-                <th style={{ width: '20%' }}>Category</th>
-                <th style={{ width: '25%' }}>Notes</th>
-                <th style={{ width: '10%' }}></th>
+                <th className="col-name">Name</th>
+                <th className="col-amount text-end">Amount</th>
+                <th className="col-category">Category</th>
+                <th className="col-notes">Notes</th>
+                <th className="col-actions"></th>
               </tr>
             </thead>
             <tbody>
