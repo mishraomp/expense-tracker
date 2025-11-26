@@ -121,14 +121,14 @@ export default function ExpensesTable({
         header: 'Date',
         cell: (info) => {
           const dateValue = info.getValue();
-          return toYYYYMMDD(dateValue as string | Date);
+          return <span className="text-nowrap">{toYYYYMMDD(dateValue as string | Date)}</span>;
         },
-        size: 120,
       }),
       columnHelper.accessor('amount', {
         header: 'Amount',
-        cell: (info) => `$${info.getValue().toFixed(2)}`,
-        size: 100,
+        cell: (info) => (
+          <span className="text-danger text-nowrap">${info.getValue().toFixed(2)}</span>
+        ),
       }),
       columnHelper.accessor((row) => row.category?.name, {
         id: 'category',
@@ -188,11 +188,12 @@ export default function ExpensesTable({
             <button
               type="button"
               onClick={(e) => handleCategoryFilter(category.id, e)}
-              className={`badge text-white d-flex align-items-center gap-1 border-0 ${active ? 'shadow-sm' : ''}`}
+              className={`badge text-white d-inline-flex align-items-center gap-1 border-0 text-truncate ${active ? 'shadow-sm' : ''}`}
               style={{
                 backgroundColor: bgColor,
                 cursor: 'pointer',
                 outline: active ? '2px solid #0d6efd' : 'none',
+                maxWidth: '120px',
               }}
               title={active ? 'Clear category filter' : `Filter by ${categoryName}`}
             >
@@ -201,12 +202,11 @@ export default function ExpensesTable({
                   {renderIcon()}
                 </span>
               )}
-              {categoryName}
+              <span className="text-truncate">{categoryName}</span>
               {active && <i className="bi bi-x ms-1" aria-label="Clear" />}
             </button>
           );
         },
-        size: 150,
       }),
       columnHelper.accessor((row) => row.subcategory?.name, {
         id: 'subcategory',
@@ -222,26 +222,36 @@ export default function ExpensesTable({
             <button
               type="button"
               onClick={(e) => handleSubcategoryFilter(subcategory.id, row.original.category?.id, e)}
-              className={`badge text-white border-0 ${active ? 'shadow-sm' : ''}`}
+              className={`badge text-white border-0 text-truncate ${active ? 'shadow-sm' : ''}`}
               style={{
                 backgroundColor: bgColor,
                 opacity: 0.75,
                 cursor: 'pointer',
                 outline: active ? '2px solid #0d6efd' : 'none',
+                maxWidth: '120px',
               }}
               title={active ? 'Clear subcategory filter' : `Filter by ${subcategoryName}`}
             >
-              {subcategoryName}
+              <span className="text-truncate">{subcategoryName}</span>
               {active && <i className="bi bi-x ms-1" aria-label="Clear" />}
             </button>
           );
         },
-        size: 150,
       }),
       columnHelper.accessor('description', {
         header: 'Description',
-        cell: (info) => info.getValue() || '-',
-        size: 250,
+        cell: (info) => {
+          const desc = info.getValue() || '-';
+          return (
+            <span
+              className="d-inline-block text-truncate"
+              style={{ maxWidth: '200px' }}
+              title={desc}
+            >
+              {desc}
+            </span>
+          );
+        },
       }),
       columnHelper.accessor('attachmentCount', {
         header: 'Att',
@@ -254,7 +264,6 @@ export default function ExpensesTable({
             </span>
           );
         },
-        size: 70,
       }),
       columnHelper.accessor((row) => row.itemCount ?? row.items?.length ?? 0, {
         id: 'itemCount',
@@ -272,26 +281,22 @@ export default function ExpensesTable({
             </span>
           );
         },
-        size: 70,
       }),
       columnHelper.display({
         id: 'actions',
         header: 'Actions',
         cell: ({ row }) => (
-          <div className="d-flex gap-1">
-            <button
-              className="btn btn-sm btn-outline-danger"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDeleteClick(row.original);
-              }}
-              aria-label={`Delete expense from ${row.original.date}`}
-            >
-              Delete
-            </button>
-          </div>
+          <button
+            className="btn btn-sm btn-outline-danger"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDeleteClick(row.original);
+            }}
+            aria-label={`Delete expense from ${row.original.date}`}
+          >
+            Delete
+          </button>
         ),
-        size: 80,
       }),
     ],
     [
@@ -360,21 +365,32 @@ export default function ExpensesTable({
     <>
       <div className="card">
         <div className="card-header py-2 d-flex justify-content-between align-items-center">
-          <h6 className="mb-0">
-            Expenses
-            <span className="badge bg-secondary ms-2">{data.pagination.total}</span>
-          </h6>
+          <h6 className="mb-0">Expenses</h6>
+          <div className="d-flex align-items-center gap-3">
+            <span className="text-muted small">
+              Total Amount:{' '}
+              <strong className="text-danger">
+                $
+                {data.summary?.totalAmount?.toLocaleString('en-US', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                }) || '0.00'}
+              </strong>
+            </span>
+            <span className="text-muted small">
+              Count: <strong>{data.pagination.total}</strong>
+            </span>
+          </div>
         </div>
         <div className="card-body p-0">
           <div className="table-responsive">
-            <table className="table table-hover mb-0">
+            <table className="table table-hover table-sm mb-0" style={{ tableLayout: 'auto' }}>
               <thead>
                 {table.getHeaderGroups().map((headerGroup) => (
                   <tr key={headerGroup.id}>
                     {headerGroup.headers.map((header) => (
                       <th
                         key={header.id}
-                        style={{ width: header.getSize() }}
                         className="user-select-none"
                       >
                         {header.isPlaceholder ? null : (

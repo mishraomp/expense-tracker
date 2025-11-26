@@ -76,6 +76,7 @@ export interface ExpenseListQuery {
   filterMonth?: number; // 1-12; ignored if year not provided
   sortOrder?: 'asc' | 'desc';
   sortBy?: string;
+  itemName?: string; // Filter expenses that have items containing this name
 }
 
 export interface ExpenseTotals {

@@ -1,4 +1,4 @@
-import { IsOptional, IsInt, Min, Max, IsUUID, IsDateString, IsEnum } from 'class-validator';
+import { IsOptional, IsInt, Min, Max, IsUUID, IsDateString, IsEnum, IsString, MaxLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum SortOrder {
@@ -57,4 +57,9 @@ export class ExpenseListQueryDto {
   @Min(1)
   @Max(12)
   filterMonth?: number; // Ignored if filterYear is not provided
+
+  @IsOptional()
+  @IsString({ message: 'Item name must be a string' })
+  @MaxLength(255, { message: 'Item name cannot exceed 255 characters' })
+  itemName?: string; // Filter expenses that have items containing this name
 }

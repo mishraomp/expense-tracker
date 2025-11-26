@@ -1,7 +1,6 @@
 import ExpenseFormModal from '../components/ExpenseFormModal';
 import ExpensesTable from '../components/ExpensesTable';
 import ExpenseFilters from '../components/ExpenseFilters';
-import CategorySummary from '../components/CategorySummary';
 import { useState } from 'react';
 import type { ExpenseListQuery } from '../types/expense.types';
 import type { Expense } from '../types/expense.types';
@@ -49,8 +48,6 @@ export default function ExpensesPage() {
       </div>
 
       <ExpenseFilters value={filters} onChange={setFilters} />
-
-      <CategorySummary filters={filters} />
 
       <div className="row g-2">
         <div className="col-12">

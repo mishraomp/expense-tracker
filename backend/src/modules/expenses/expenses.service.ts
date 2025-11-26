@@ -209,6 +209,7 @@ export class ExpensesService {
       filterMonth,
       sortOrder = 'desc',
       sortBy = 'date',
+      itemName,
     } = query;
     const skip = (page - 1) * pageSize;
 
@@ -221,6 +222,16 @@ export class ExpensesService {
 
     if (subcategoryId) {
       where.subcategoryId = subcategoryId;
+    }
+
+    // Item name filter - find expenses that have items matching the name (case-insensitive)
+    if (itemName) {
+      where.items = {
+        some: {
+          name: { contains: itemName, mode: 'insensitive' },
+          deletedAt: null,
+        },
+      };
     }
 
     // Date filters can be (start/end) OR (filterYear/filterMonth)
