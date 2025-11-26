@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -9,6 +9,8 @@ import {
   type PaginationState,
 } from '@tanstack/react-table';
 import { useExpenses } from '../api/expenseApi';
+import { useCategories } from '../api/categoryApi';
+import { useSubcategories } from '../api/subcategoryApi';
 import { toYYYYMMDD } from '@/services/date';
 import type { ExpenseListQuery, Expense } from '../types/expense.types';
 import DeleteConfirmModal from './DeleteConfirmModal';
@@ -30,10 +32,36 @@ export default function ExpensesTable({
   const [sorting, setSorting] = useState<SortingState>([{ id: 'date', desc: true }]);
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
-    pageSize: 5,
+    pageSize: 10,
   });
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
+
+  // Local state for debounced item name input
+  const itemNameFromFilters = filters.itemName ?? '';
+  const [itemNameInput, setItemNameInput] = useState(itemNameFromFilters);
+
+  // Fetch categories and subcategories for filter dropdowns
+  const { data: categories } = useCategories();
+  const { data: subcategories } = useSubcategories(filters.categoryId || undefined);
+
+  // Sync local item name state when parent filters change (e.g., clear)
+  useEffect(() => {
+    setItemNameInput(itemNameFromFilters);
+  }, [itemNameFromFilters]);
+
+  // Debounce item name filter
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (itemNameInput !== itemNameFromFilters) {
+        onFilterChange?.({
+          ...filters,
+          itemName: itemNameInput || undefined,
+        });
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [itemNameInput, itemNameFromFilters, filters, onFilterChange]);
 
   // Reset pagination to page 0 when filters change
   const filterKey = JSON.stringify(filters);
@@ -114,6 +142,70 @@ export default function ExpensesTable({
     },
     [filters, onFilterChange],
   );
+
+  // Inline filter handlers
+  const handleCategorySelectChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const value = e.target.value;
+      onFilterChange?.({
+        ...filters,
+        categoryId: value || undefined,
+        subcategoryId: undefined,
+      });
+    },
+    [filters, onFilterChange],
+  );
+
+  const handleSubcategorySelectChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const value = e.target.value;
+      onFilterChange?.({
+        ...filters,
+        subcategoryId: value || undefined,
+      });
+    },
+    [filters, onFilterChange],
+  );
+
+  const handleStartDateChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value;
+      onFilterChange?.({
+        ...filters,
+        startDate: value || undefined,
+        filterYear: undefined,
+        filterMonth: undefined,
+      });
+    },
+    [filters, onFilterChange],
+  );
+
+  const handleEndDateChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value;
+      onFilterChange?.({
+        ...filters,
+        endDate: value || undefined,
+        filterYear: undefined,
+        filterMonth: undefined,
+      });
+    },
+    [filters, onFilterChange],
+  );
+
+  const handleClearFilters = useCallback(() => {
+    setItemNameInput('');
+    onFilterChange?.({});
+  }, [onFilterChange]);
+
+  const hasActiveFilters =
+    filters.categoryId ||
+    filters.subcategoryId ||
+    filters.filterYear ||
+    filters.filterMonth ||
+    filters.startDate ||
+    filters.endDate ||
+    filters.itemName;
 
   const columns = useMemo(
     () => [
@@ -265,8 +357,9 @@ export default function ExpensesTable({
               handleDeleteClick(row.original);
             }}
             aria-label={`Delete expense from ${row.original.date}`}
+            title="Delete expense"
           >
-            Delete
+            <i className="bi bi-trash"></i>
           </button>
         ),
       }),
@@ -296,6 +389,120 @@ export default function ExpensesTable({
     },
   });
 
+  // Calculate default date range (current month start to today)
+  const getDefaultStartDate = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  };
+
+  const getDefaultEndDate = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  };
+
+  // Get current filter values or defaults
+  const startDateValue = filters.startDate ?? getDefaultStartDate();
+  const endDateValue = filters.endDate ?? getDefaultEndDate();
+
+  // Render inline filter row
+  const renderFilterRow = () => (
+    <tr className="table-filter-row bg-light">
+      {/* Date filter: Start and End date pickers */}
+      <th>
+        <div className="d-flex gap-1 align-items-center">
+          <input
+            type="date"
+            className="form-control form-control-sm"
+            value={startDateValue}
+            onChange={handleStartDateChange}
+            aria-label="Start date"
+            title="Start date"
+          />
+          <span className="text-muted">-</span>
+          <input
+            type="date"
+            className="form-control form-control-sm"
+            value={endDateValue}
+            onChange={handleEndDateChange}
+            aria-label="End date"
+            title="End date"
+          />
+        </div>
+      </th>
+      {/* Amount: no filter */}
+      <th>
+        <span className="text-muted small">—</span>
+      </th>
+      {/* Category filter */}
+      <th>
+        <select
+          className="form-select form-select-sm"
+          value={filters.categoryId || ''}
+          onChange={handleCategorySelectChange}
+          aria-label="Filter by category"
+        >
+          <option value="">All</option>
+          {categories?.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </th>
+      {/* Subcategory filter */}
+      <th>
+        <select
+          className="form-select form-select-sm"
+          value={filters.subcategoryId || ''}
+          onChange={handleSubcategorySelectChange}
+          disabled={!filters.categoryId}
+          aria-label="Filter by subcategory"
+        >
+          <option value="">All</option>
+          {(subcategories || [])
+            .filter((s) => s.categoryId === filters.categoryId)
+            .map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+        </select>
+      </th>
+      {/* Description column: no filter */}
+      <th>
+        <span className="text-muted small">—</span>
+      </th>
+      {/* Att column: no filter */}
+      <th>
+        <span className="text-muted small">—</span>
+      </th>
+      {/* Items column: Item name filter */}
+      <th>
+        <input
+          type="text"
+          className="form-control form-control-sm"
+          placeholder="Search..."
+          value={itemNameInput}
+          onChange={(e) => setItemNameInput(e.target.value)}
+          aria-label="Filter by item name"
+        />
+      </th>
+      {/* Actions: Clear button */}
+      <th className="text-center">
+        {hasActiveFilters && (
+          <button
+            className="btn btn-sm btn-outline-secondary"
+            onClick={handleClearFilters}
+            aria-label="Clear all filters"
+            title="Clear all filters"
+          >
+            <i className="bi bi-x-circle"></i>
+          </button>
+        )}
+      </th>
+    </tr>
+  );
+
   if (isLoading) {
     return (
       <div className="card">
@@ -322,17 +529,6 @@ export default function ExpensesTable({
     );
   }
 
-  if (!data || data.data.length === 0) {
-    return (
-      <div className="card">
-        <div className="card-body text-center py-5">
-          <h5 className="text-muted">No expenses found</h5>
-          <p className="text-muted">Start by adding your first expense above.</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <>
       <div className="card">
@@ -343,20 +539,20 @@ export default function ExpensesTable({
               Total Amount:{' '}
               <strong className="text-danger">
                 $
-                {data.summary?.totalAmount?.toLocaleString('en-US', {
+                {data?.summary?.totalAmount?.toLocaleString('en-US', {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 }) || '0.00'}
               </strong>
             </span>
             <span className="text-muted small">
-              Count: <strong>{data.pagination.total}</strong>
+              Count: <strong>{data?.pagination.total || 0}</strong>
             </span>
           </div>
         </div>
         <div className="card-body p-0">
           <div className="table-responsive">
-            <table className="table table-hover table-sm mb-0 table-auto">
+            <table className="table table-hover table-sm mb-0 expenses-table">
               <thead>
                 {table.getHeaderGroups().map((headerGroup) => (
                   <tr key={headerGroup.id}>
@@ -386,27 +582,42 @@ export default function ExpensesTable({
                     ))}
                   </tr>
                 ))}
+                {/* Inline filter row */}
+                {renderFilterRow()}
               </thead>
               <tbody>
-                {table.getRowModel().rows.map((row) => (
-                  <tr
-                    key={row.id}
-                    onClick={(e) => {
-                      // Avoid triggering edit when clicking filter badges
-                      const target = e.target as HTMLElement;
-                      if (target.closest('button')) return;
-                      handleEdit(row.original);
-                    }}
-                    className="table-row-clickable cursor-pointer"
-                    aria-label={`Edit expense from ${row.original.date}`}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <td key={cell.id}>
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    ))}
+                {!data || data.data.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="text-center py-4">
+                      <h6 className="text-muted mb-1">No expenses found</h6>
+                      <p className="text-muted small mb-0">
+                        {hasActiveFilters
+                          ? 'Try adjusting your filters or clear them to see all expenses.'
+                          : 'Start by adding your first expense above.'}
+                      </p>
+                    </td>
                   </tr>
-                ))}
+                ) : (
+                  table.getRowModel().rows.map((row) => (
+                    <tr
+                      key={row.id}
+                      onClick={(e) => {
+                        // Avoid triggering edit when clicking filter badges
+                        const target = e.target as HTMLElement;
+                        if (target.closest('button')) return;
+                        handleEdit(row.original);
+                      }}
+                      className="table-row-clickable cursor-pointer"
+                      aria-label={`Edit expense from ${row.original.date}`}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <td key={cell.id}>
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

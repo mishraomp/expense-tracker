@@ -284,6 +284,140 @@ canvas {
   }
 }
 
+// Inline filter row in table header
+.table-filter-row {
+  th {
+    vertical-align: middle;
+    font-weight: normal;
+    padding: 0.25rem 0.3rem;
+  }
+
+  .form-select,
+  .form-control {
+    min-width: 3rem;
+    font-size: 0.75rem;
+    padding: 0.2rem 0.35rem;
+  }
+
+  // Date inputs compact
+  input[type='date'] {
+    min-width: 5.5rem;
+    padding: 0.15rem 0.2rem;
+  }
+
+  // Compact filter inputs on small screens
+  @media (max-width: 62rem) {
+    .form-select,
+    .form-control {
+      font-size: 0.7rem;
+      padding: 0.2rem 0.3rem;
+    }
+
+    input[type='date'] {
+      min-width: 5rem;
+      padding: 0.15rem 0.15rem;
+    }
+  }
+
+  @media (max-width: 48rem) {
+    .form-select,
+    .form-control {
+      font-size: 0.65rem;
+      padding: 0.15rem 0.2rem;
+    }
+
+    input[type='date'] {
+      min-width: 4.5rem;
+    }
+  }
+}
+
+// Full-width tables on all screen sizes
+.table {
+  width: 100%;
+}
+
+// Expenses table optimizations
+.expenses-table {
+  table-layout: fixed;
+
+  // Distribute columns proportionally
+  th,
+  td {
+    padding: 0.35rem 0.4rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    
+    &:nth-child(1) {
+      // Date
+      width: 15%;
+      min-width: 11rem;
+    }
+    &:nth-child(2) {
+      // Amount
+      width: 7%;
+      min-width: 4.5rem;
+    }
+    &:nth-child(3) {
+      // Category
+      width: 10%;
+      min-width: 5.5rem;
+    }
+    &:nth-child(4) {
+      // Subcategory
+      width: 10%;
+      min-width: 5.5rem;
+    }
+    &:nth-child(5) {
+      // Description
+      width: 14%;
+      min-width: 7rem;
+      max-width: 10rem;
+    }
+    &:nth-child(6) {
+      // Att
+      width: 5%;
+      min-width: 3rem;
+      text-align: center;
+    }
+    &:nth-child(7) {
+      // Items
+      width: 8%;
+      min-width: 5rem;
+      text-align: center;
+    }
+    &:nth-child(8) {
+      // Actions
+      width: 5%;
+      min-width: 3rem;
+      text-align: center;
+    }
+  }
+
+  // On medium screens, hide less important columns
+  @media (max-width: 62rem) {
+    th,
+    td {
+      &:nth-child(6) {
+        // Hide Att column
+        display: none;
+      }
+    }
+  }
+
+  // On small screens, hide more columns
+  @media (max-width: 48rem) {
+    th,
+    td {
+      &:nth-child(5),
+      &:nth-child(6) {
+        // Hide Description and Att
+        display: none;
+      }
+    }
+  }
+}
+
 // Item list tables responsive behavior
 .expense-item-table {
   th,

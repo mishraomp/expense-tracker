@@ -1,14 +1,33 @@
 import ExpenseFormModal from '../components/ExpenseFormModal';
 import ExpensesTable from '../components/ExpensesTable';
-import ExpenseFilters from '../components/ExpenseFilters';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import type { ExpenseListQuery } from '../types/expense.types';
 import type { Expense } from '../types/expense.types';
 
+// Helper to get current month start date (YYYY-MM-01)
+function getCurrentMonthStart(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+}
+
+// Helper to get today's date (YYYY-MM-DD)
+function getToday(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
 export default function ExpensesPage() {
-  const [filters, setFilters] = useState<Omit<ExpenseListQuery, 'page' | 'pageSize' | 'sortOrder'>>(
-    {},
+  // Initialize filters with current month date range
+  const defaultFilters = useMemo(
+    () => ({
+      startDate: getCurrentMonthStart(),
+      endDate: getToday(),
+    }),
+    [],
   );
+
+  const [filters, setFilters] =
+    useState<Omit<ExpenseListQuery, 'page' | 'pageSize' | 'sortOrder'>>(defaultFilters);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
 
@@ -47,13 +66,7 @@ export default function ExpensesPage() {
         </div>
       </div>
 
-      <ExpenseFilters value={filters} onChange={setFilters} />
-
-      <div className="row g-2">
-        <div className="col-12">
-          <ExpensesTable onEdit={handleEdit} filters={filters} onFilterChange={setFilters} />
-        </div>
-      </div>
+      <ExpensesTable onEdit={handleEdit} filters={filters} onFilterChange={setFilters} />
 
       <ExpenseFormModal
         isOpen={isFormOpen}

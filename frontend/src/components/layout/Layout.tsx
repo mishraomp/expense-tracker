@@ -28,7 +28,7 @@ export function Layout({ children }: LayoutProps) {
     <>
       <div>
         <nav className="navbar navbar-expand-lg navbar-dark bg-primary mb-2">
-          <div className="container">
+          <div className="container-fluid px-3 px-lg-4">
             <Link to="/" className="navbar-brand">
               Expense Tracker
             </Link>
@@ -94,7 +94,7 @@ export function Layout({ children }: LayoutProps) {
         </nav>
 
         <main>
-          <div className="container-xxl">{children}</div>
+          <div className="container-fluid px-3 px-lg-4">{children}</div>
         </main>
         {isAuthenticated && showUserModal && (
           <>
