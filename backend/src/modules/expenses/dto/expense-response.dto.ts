@@ -1,4 +1,5 @@
-import { Expense, Category, Subcategory } from '@prisma/client';
+import { Expense, Category, Subcategory, ExpenseItem } from '@prisma/client';
+import { ExpenseItemResponseDto } from './expense-item-response.dto';
 
 export class CategoryResponseDto {
   id: string;
@@ -24,9 +25,17 @@ export class ExpenseResponseDto {
   category?: CategoryResponseDto;
   subcategory?: { id: string; name: string };
   attachmentCount?: number; // number of active attachments
+  items?: ExpenseItemResponseDto[]; // expense line items
+  itemCount?: number; // count of items (for list views)
 
   static fromEntity(
-    expense: Expense & { category?: Category; subcategory?: Subcategory; attachmentCount?: number },
+    expense: Expense & {
+      category?: Category;
+      subcategory?: Subcategory;
+      attachmentCount?: number;
+      itemCount?: number;
+      items?: (ExpenseItem & { category?: Category | null; subcategory?: Subcategory | null })[];
+    },
   ): ExpenseResponseDto {
     return {
       id: expense.id,
@@ -57,6 +66,9 @@ export class ExpenseResponseDto {
           }
         : undefined,
       attachmentCount: (expense as any).attachmentCount,
+      items: expense.items?.map((item) => ExpenseItemResponseDto.fromEntity(item)),
+      // Use itemCount from aggregation if provided, otherwise count from items array
+      itemCount: (expense as any).itemCount ?? expense.items?.length,
     };
   }
 }

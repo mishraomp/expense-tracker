@@ -8,6 +8,7 @@ import type { SubcategoryBreakdownItem } from '../types/reports.types';
 type PieData = {
   subcategory: string;
   category: string;
+  subcategoryId: string;
   amount: number;
   percentage: number;
   color: string;
@@ -15,6 +16,7 @@ type PieData = {
 
 interface SubcategoryBreakdownChartProps {
   data: SubcategoryBreakdownItem[];
+  onSubcategoryClick?: (subcategory: SubcategoryBreakdownItem) => void;
 }
 
 const DEFAULT_COLORS = [
@@ -30,7 +32,10 @@ const DEFAULT_COLORS = [
   '#FFDD59',
 ];
 
-export const SubcategoryBreakdownChart = ({ data }: SubcategoryBreakdownChartProps) => {
+export const SubcategoryBreakdownChart = ({
+  data,
+  onSubcategoryClick,
+}: SubcategoryBreakdownChartProps) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -63,6 +68,7 @@ export const SubcategoryBreakdownChart = ({ data }: SubcategoryBreakdownChartPro
     const parsed = data.map((d, i) => ({
       subcategory: d.subcategoryName,
       category: d.categoryName,
+      subcategoryId: d.subcategoryId,
       amount: new Decimal(d.amount).toNumber(),
       // Always assign a unique color per subcategory — prefer palette by index
       // If there are more subcategories than colors, generate additional hues.
@@ -97,7 +103,20 @@ export const SubcategoryBreakdownChart = ({ data }: SubcategoryBreakdownChartPro
       .attr('stroke', 'white')
       .attr('stroke-width', 2)
       .attr('tabindex', 0)
-      .attr('role', 'listitem');
+      .attr('role', 'listitem')
+      .style('cursor', onSubcategoryClick ? 'pointer' : 'default')
+      .on('click', (_event, d) => {
+        if (onSubcategoryClick) {
+          const original = data.find((item) => item.subcategoryId === d.data.subcategoryId);
+          if (original) onSubcategoryClick(original);
+        }
+      })
+      .on('mouseover', function () {
+        select(this).attr('opacity', 0.8);
+      })
+      .on('mouseout', function () {
+        select(this).attr('opacity', 1);
+      });
 
     paths
       .append('title')
@@ -134,7 +153,20 @@ export const SubcategoryBreakdownChart = ({ data }: SubcategoryBreakdownChartPro
       .data(parsedWithPercentage)
       .enter()
       .append('g')
-      .attr('transform', (_d, i) => `translate(0, ${i * 25})`);
+      .attr('transform', (_d, i) => `translate(0, ${i * 25})`)
+      .style('cursor', onSubcategoryClick ? 'pointer' : 'default')
+      .on('click', (_event, d) => {
+        if (onSubcategoryClick) {
+          const original = data.find((item) => item.subcategoryId === d.subcategoryId);
+          if (original) onSubcategoryClick(original);
+        }
+      })
+      .on('mouseover', function () {
+        select(this).attr('opacity', 0.7);
+      })
+      .on('mouseout', function () {
+        select(this).attr('opacity', 1);
+      });
 
     legendItems
       .append('rect')
@@ -152,7 +184,7 @@ export const SubcategoryBreakdownChart = ({ data }: SubcategoryBreakdownChartPro
         (d) =>
           `${d.subcategory} (${d.category}): $${d.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${d.percentage.toFixed(1)}%)`,
       );
-  }, [data]);
+  }, [data, onSubcategoryClick]);
 
   if (data.length === 0) {
     return (

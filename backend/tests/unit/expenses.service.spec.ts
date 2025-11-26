@@ -23,6 +23,7 @@ describe('ExpensesService', () => {
         findMany: vi.fn(async () => []),
         groupBy: vi.fn(async () => []),
       },
+      expenseItem: { groupBy: vi.fn(async () => []) },
       $transaction: vi.fn(async (ops: any[]) =>
         Promise.all(ops.map((op) => (typeof op === 'function' ? op(mockPrisma) : op))),
       ),

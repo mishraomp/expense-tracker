@@ -1,3 +1,5 @@
+import type { ExpenseItem, CreateExpenseItemInput } from './expense-item.types';
+
 export interface Category {
   id: string;
   name: string;
@@ -24,6 +26,8 @@ export interface Expense {
   category?: Category;
   subcategory?: { id: string; name: string };
   attachmentCount?: number; // number of active attachments
+  items?: ExpenseItem[]; // expense line items
+  itemCount?: number; // count of items (for list views)
 }
 
 export interface ExpenseListResponse {
@@ -49,6 +53,7 @@ export interface CreateExpenseInput {
   recurring?: boolean;
   recurrenceFrequency?: 'monthly' | 'weekly' | 'biweekly' | 'quarterly' | 'yearly';
   numberOfRecurrences?: number;
+  items?: CreateExpenseItemInput[]; // expense line items to create with the expense
 }
 
 export interface UpdateExpenseInput {

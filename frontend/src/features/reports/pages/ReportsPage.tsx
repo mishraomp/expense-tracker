@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { toYYYYMMDD } from '@/services/date';
 import { SpendingOverTimeChart } from '../components/SpendingOverTimeChart';
 import { CategoryBreakdownChart } from '../components/CategoryBreakdownChart';
 import { SubcategoryBreakdownChart } from '../components/SubcategoryBreakdownChart';
+import { SubcategoryLineItemsModal } from '../components/SubcategoryLineItemsModal';
 import {
   useSpendingOverTime,
   useSpendingByCategory,
@@ -13,6 +14,7 @@ import {
 } from '../hooks/useReports';
 import { CategoryBudgetReportTable, SubcategoryBudgetReportTable } from '../components';
 import { IncomeVsExpenseReport } from '../components/IncomeVsExpenseReport';
+import type { SubcategoryBreakdownItem } from '../types/reports.types';
 
 type ReportType =
   | 'spending-over-time'
@@ -24,6 +26,9 @@ type ReportType =
 
 export const ReportsPage = () => {
   const [selectedReport, setSelectedReport] = useState<ReportType>('spending-over-time');
+  const [selectedSubcategory, setSelectedSubcategory] = useState<SubcategoryBreakdownItem | null>(
+    null,
+  );
 
   // Removed old per-report default logic; we unify to Jan 1 -> Today
 
@@ -56,6 +61,14 @@ export const ReportsPage = () => {
   const subcategoryQuery = useSpendingBySubcategory({ startDate, endDate });
   const catBudgetReport = useCategoryBudgetReport({});
   const subcatBudgetReport = useSubcategoryBudgetReport({});
+
+  const handleSubcategoryClick = useCallback((subcategory: SubcategoryBreakdownItem) => {
+    setSelectedSubcategory(subcategory);
+  }, []);
+
+  const handleCloseSubcategoryModal = useCallback(() => {
+    setSelectedSubcategory(null);
+  }, []);
 
   return (
     <div className="py-2 reports-page">
@@ -213,11 +226,27 @@ export const ReportsPage = () => {
               </div>
             )}
             {subcategoryQuery.isSuccess && (
-              <SubcategoryBreakdownChart data={subcategoryQuery.data} />
+              <>
+                <SubcategoryBreakdownChart
+                  data={subcategoryQuery.data}
+                  onSubcategoryClick={handleSubcategoryClick}
+                />
+                <div className="small text-muted mt-2">
+                  Click on a subcategory slice or legend item to view line items.
+                </div>
+              </>
             )}
           </div>
         </div>
       )}
+
+      <SubcategoryLineItemsModal
+        isOpen={!!selectedSubcategory}
+        subcategory={selectedSubcategory}
+        startDate={startDate}
+        endDate={endDate}
+        onClose={handleCloseSubcategoryModal}
+      />
 
       {selectedReport === 'income-vs-expense' && (
         <div className="card mb-4">

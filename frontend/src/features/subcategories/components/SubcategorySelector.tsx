@@ -6,9 +6,26 @@ interface Props {
   value?: string | null;
   onChange: (value: string | '') => void;
   disabled?: boolean;
+  /** Size variant: 'sm' | 'default' */
+  size?: 'sm' | 'default';
+  /** Label text (default: 'Subcategory'). Set to empty string to hide label */
+  label?: string;
+  /** Placeholder for empty option (default: 'None') */
+  placeholder?: string;
+  /** Hide the label entirely (default: false) */
+  hideLabel?: boolean;
 }
 
-export default function SubcategorySelector({ categoryId, value, onChange, disabled }: Props) {
+export default function SubcategorySelector({
+  categoryId,
+  value,
+  onChange,
+  disabled,
+  size = 'default',
+  label = 'Subcategory',
+  placeholder = 'None',
+  hideLabel = false,
+}: Props) {
   const { data: subcategories, isLoading } = useSubcategories(categoryId);
 
   useEffect(() => {
@@ -24,19 +41,24 @@ export default function SubcategorySelector({ categoryId, value, onChange, disab
 
   if (!categoryId) return null;
 
+  const selectClass = size === 'sm' ? 'form-select form-select-sm' : 'form-select';
+  const showLabel = !hideLabel && label;
+
   return (
     <div>
-      <label htmlFor="subcategoryId" className="form-label small mb-1">
-        Subcategory
-      </label>
+      {showLabel && (
+        <label htmlFor="subcategoryId" className="form-label small mb-1">
+          {label}
+        </label>
+      )}
       <select
         id="subcategoryId"
-        className="form-select form-select-sm"
+        className={selectClass}
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled || isLoading}
       >
-        <option value="">None</option>
+        <option value="">{placeholder}</option>
         {(subcategories || []).map((s) => (
           <option key={s.id} value={s.id}>
             {s.name}
