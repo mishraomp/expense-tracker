@@ -29,18 +29,18 @@ describe('ExpenseFilters component', () => {
 
   it('disables date inputs when year/month filter active', async () => {
     const onChange = vi.fn();
-    render(<ExpenseFilters onChange={onChange} />);
-    const yearSelect = screen.getByLabelText('Filter by year');
-    const monthSelect = screen.getByLabelText('Filter by month');
+    // Pass value with year and month selected (controlled component)
+    const { rerender } = render(
+      <ExpenseFilters
+        value={{ filterYear: new Date().getFullYear(), filterMonth: 1 }}
+        onChange={onChange}
+      />,
+    );
     const startInput = screen.getByLabelText('Start date');
     const endInput = screen.getByLabelText('End date');
 
-    // Select year and month
-    fireEvent.change(yearSelect, { target: { value: String(new Date().getFullYear()) } });
-    fireEvent.change(monthSelect, { target: { value: '01' } });
-
-    // Wait for change using waitFor and assertions
-    await waitFor(() => expect(startInput).toBeDisabled(), { timeout: 1000 });
+    // Date inputs should be disabled when year/month is active
+    expect(startInput).toBeDisabled();
     expect(endInput).toBeDisabled();
   });
 });

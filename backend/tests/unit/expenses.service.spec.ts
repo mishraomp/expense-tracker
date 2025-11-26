@@ -17,9 +17,12 @@ describe('ExpensesService', () => {
         findFirst: vi.fn(async () => ({ id: 'exp-1', amount: new Decimal(100) })),
         update: vi.fn(async ({ where, data }: any) => ({ id: where.id, ...data })),
       },
-      category: { findFirst: vi.fn(), findUnique: vi.fn() },
+      category: { findFirst: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(async () => []) },
       subcategory: { findUnique: vi.fn(), findFirst: vi.fn() },
-      attachments: { findMany: vi.fn(async () => []) },
+      attachments: {
+        findMany: vi.fn(async () => []),
+        groupBy: vi.fn(async () => []),
+      },
       $transaction: vi.fn(async (ops: any[]) =>
         Promise.all(ops.map((op) => (typeof op === 'function' ? op(mockPrisma) : op))),
       ),
@@ -206,11 +209,16 @@ describe('ExpensesService', () => {
   });
 
   it('bulkCreate creates item, handles duplicates and failures', async () => {
-    // Success path
-    mockPrisma.category.findFirst.mockResolvedValueOnce({ id: 'cat-1' });
-    mockPrisma.subcategory.findFirst.mockResolvedValueOnce({ id: 'sub-1' });
-    mockPrisma.expense.findFirst.mockResolvedValueOnce(null);
-    mockPrisma.expense.create.mockResolvedValueOnce({ id: 'e1' });
+    // Success path - return a category with subcategories included
+    mockPrisma.category.findMany.mockResolvedValueOnce([
+      { id: 'cat-1', name: 'Utilities', subcategories: [{ id: 'sub-1', name: 'Electric' }] },
+    ]);
+    mockPrisma.expense.findMany.mockResolvedValueOnce([]); // no duplicates
+    mockPrisma.expense.create.mockResolvedValueOnce({
+      id: 'e1',
+      category: { id: 'cat-1' },
+      subcategory: { id: 'sub-1' },
+    });
     const out1 = await svc.bulkCreate('user-1', [
       {
         categoryName: 'Utilities',
@@ -222,9 +230,12 @@ describe('ExpensesService', () => {
     expect(out1.created.length).toBe(1);
 
     // Duplicate path
-    mockPrisma.category.findFirst.mockResolvedValueOnce({ id: 'cat-1' });
-    mockPrisma.subcategory.findFirst.mockResolvedValueOnce({ id: 'sub-1' });
-    mockPrisma.expense.findFirst.mockResolvedValueOnce({ id: 'exists' });
+    mockPrisma.category.findMany.mockResolvedValueOnce([
+      { id: 'cat-1', name: 'Utilities', subcategories: [{ id: 'sub-1', name: 'Electric' }] },
+    ]);
+    mockPrisma.expense.findMany.mockResolvedValueOnce([
+      { amount: new Decimal(10), date: new Date('2025-01-02'), description: null },
+    ]);
     const out2 = await svc.bulkCreate('user-1', [
       {
         categoryName: 'Utilities',
@@ -236,7 +247,8 @@ describe('ExpensesService', () => {
     expect(out2.duplicates.length).toBe(1);
 
     // Failure path - missing category
-    mockPrisma.category.findFirst.mockResolvedValueOnce(null);
+    mockPrisma.category.findMany.mockResolvedValueOnce([]);
+    mockPrisma.expense.findMany.mockResolvedValueOnce([]);
     const out3 = await svc.bulkCreate('user-1', [
       { categoryName: 'Unknown', amount: 10, date: '2025-01-03' } as any,
     ]);
