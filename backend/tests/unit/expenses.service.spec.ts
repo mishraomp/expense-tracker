@@ -19,7 +19,10 @@ describe('ExpensesService', () => {
       },
       category: { findFirst: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(async () => []) },
       subcategory: { findUnique: vi.fn(), findFirst: vi.fn() },
-      attachments: { findMany: vi.fn(async () => []), groupBy: vi.fn(async () => []) },
+      attachments: {
+        findMany: vi.fn(async () => []),
+        groupBy: vi.fn(async () => []),
+      },
       expenseItem: { groupBy: vi.fn(async () => []) },
       $transaction: vi.fn(async (ops: any[]) =>
         Promise.all(ops.map((op) => (typeof op === 'function' ? op(mockPrisma) : op))),
@@ -207,12 +210,11 @@ describe('ExpensesService', () => {
   });
 
   it('bulkCreate creates item, handles duplicates and failures', async () => {
-    // Setup category and subcategory mock for findMany
+    // Success path - return a category with subcategories included
     mockPrisma.category.findMany.mockResolvedValueOnce([
       { id: 'cat-1', name: 'Utilities', subcategories: [{ id: 'sub-1', name: 'Electric' }] },
     ]);
-    // Mock for duplicate detection - no duplicates
-    mockPrisma.expense.findMany.mockResolvedValueOnce([]);
+    mockPrisma.expense.findMany.mockResolvedValueOnce([]); // no duplicates
     mockPrisma.expense.create.mockResolvedValueOnce({
       id: 'e1',
       category: { id: 'cat-1' },
@@ -228,7 +230,7 @@ describe('ExpensesService', () => {
     ]);
     expect(out1.created.length).toBe(1);
 
-    // Duplicate path - expense already exists
+    // Duplicate path
     mockPrisma.category.findMany.mockResolvedValueOnce([
       { id: 'cat-1', name: 'Utilities', subcategories: [{ id: 'sub-1', name: 'Electric' }] },
     ]);
