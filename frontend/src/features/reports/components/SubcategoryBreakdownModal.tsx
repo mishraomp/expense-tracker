@@ -1,4 +1,3 @@
-import React from 'react';
 import { SubcategoryBreakdownChart } from './SubcategoryBreakdownChart';
 import type { SubcategoryBreakdownItem } from '../types/reports.types';
 

@@ -13,15 +13,6 @@ export default function ExpensesPage() {
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
 
-  const hasAnyFilterSelected = Boolean(
-    filters.categoryId ||
-      filters.subcategoryId ||
-      filters.startDate ||
-      filters.endDate ||
-      filters.filterYear ||
-      filters.filterMonth,
-  );
-
   const handleExpenseSaved = () => {
     setEditingExpense(null);
     setIsFormOpen(false);
