@@ -1,4 +1,4 @@
-﻿# Expense Tracker - AI Agent Guidelines
+# Expense Tracker - AI Agent Guidelines
 
 This document provides guidelines for AI agents working on the Expense Tracker project.
 
