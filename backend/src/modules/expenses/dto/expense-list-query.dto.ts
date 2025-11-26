@@ -1,5 +1,5 @@
-import { IsOptional, IsInt, Min, Max, IsUUID, IsDateString, IsEnum, IsString, MaxLength } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsOptional, IsInt, Min, Max, IsUUID, IsDateString, IsEnum, IsString, MaxLength, IsArray } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
 
 export enum SortOrder {
   ASC = 'asc',
@@ -62,4 +62,16 @@ export class ExpenseListQueryDto {
   @IsString({ message: 'Item name must be a string' })
   @MaxLength(255, { message: 'Item name cannot exceed 255 characters' })
   itemName?: string; // Filter expenses that have items containing this name
+
+  @IsOptional()
+  @IsArray({ message: 'Tag IDs must be an array' })
+  @IsUUID('4', { each: true, message: 'Each tag ID must be a valid UUID' })
+  @Transform(({ value }) => {
+    // Handle comma-separated string from query params
+    if (typeof value === 'string') {
+      return value.split(',').map((id: string) => id.trim()).filter(Boolean);
+    }
+    return value;
+  })
+  tagIds?: string[]; // Filter expenses that have any of these tags
 }

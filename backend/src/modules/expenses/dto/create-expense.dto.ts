@@ -85,4 +85,10 @@ export class CreateExpenseDto {
   @ArrayMaxSize(100, { message: 'Cannot add more than 100 items per expense' })
   @Type(() => CreateExpenseItemDto)
   items?: CreateExpenseItemDto[];
+
+  @IsOptional()
+  @IsArray({ message: 'Tag IDs must be an array' })
+  @IsUUID('4', { each: true, message: 'Each tag ID must be a valid UUID' })
+  @ArrayMaxSize(10, { message: 'Cannot add more than 10 tags per expense' })
+  tagIds?: string[];
 }

@@ -1,4 +1,5 @@
 import type { ExpenseItem, CreateExpenseItemInput } from './expense-item.types';
+import type { TagInfo } from '../../../types/tag';
 
 export interface Category {
   id: string;
@@ -28,6 +29,7 @@ export interface Expense {
   attachmentCount?: number; // number of active attachments
   items?: ExpenseItem[]; // expense line items
   itemCount?: number; // count of items (for list views)
+  tags?: TagInfo[]; // associated tags
 }
 
 export interface ExpenseListResponse {
@@ -54,6 +56,7 @@ export interface CreateExpenseInput {
   recurrenceFrequency?: 'monthly' | 'weekly' | 'biweekly' | 'quarterly' | 'yearly';
   numberOfRecurrences?: number;
   items?: CreateExpenseItemInput[]; // expense line items to create with the expense
+  tagIds?: string[]; // tag IDs to associate with the expense
 }
 
 export interface UpdateExpenseInput {
@@ -62,6 +65,7 @@ export interface UpdateExpenseInput {
   date?: string;
   description?: string;
   subcategoryId?: string | null;
+  tagIds?: string[]; // tag IDs to associate with the expense
 }
 
 export interface ExpenseListQuery {
@@ -77,6 +81,7 @@ export interface ExpenseListQuery {
   sortOrder?: 'asc' | 'desc';
   sortBy?: string;
   itemName?: string; // Filter expenses that have items containing this name
+  tagIds?: string[]; // Filter expenses that have any of these tags
 }
 
 export interface ExpenseTotals {

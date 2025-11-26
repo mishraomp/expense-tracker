@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TagsRouteImport } from './routes/tags'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as IncomesRouteImport } from './routes/incomes'
 import { Route as ImportRouteImport } from './routes/import'
@@ -18,6 +19,11 @@ import { Route as CategoriesRouteImport } from './routes/categories'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as OauthCallbackRouteImport } from './routes/oauth/callback'
 
+const TagsRoute = TagsRouteImport.update({
+  id: '/tags',
+  path: '/tags',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReportsRoute = ReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
@@ -67,6 +73,7 @@ export interface FileRoutesByFullPath {
   '/import': typeof ImportRoute
   '/incomes': typeof IncomesRoute
   '/reports': typeof ReportsRoute
+  '/tags': typeof TagsRoute
   '/oauth/callback': typeof OauthCallbackRoute
 }
 export interface FileRoutesByTo {
@@ -77,6 +84,7 @@ export interface FileRoutesByTo {
   '/import': typeof ImportRoute
   '/incomes': typeof IncomesRoute
   '/reports': typeof ReportsRoute
+  '/tags': typeof TagsRoute
   '/oauth/callback': typeof OauthCallbackRoute
 }
 export interface FileRoutesById {
@@ -88,6 +96,7 @@ export interface FileRoutesById {
   '/import': typeof ImportRoute
   '/incomes': typeof IncomesRoute
   '/reports': typeof ReportsRoute
+  '/tags': typeof TagsRoute
   '/oauth/callback': typeof OauthCallbackRoute
 }
 export interface FileRouteTypes {
@@ -100,6 +109,7 @@ export interface FileRouteTypes {
     | '/import'
     | '/incomes'
     | '/reports'
+    | '/tags'
     | '/oauth/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -110,6 +120,7 @@ export interface FileRouteTypes {
     | '/import'
     | '/incomes'
     | '/reports'
+    | '/tags'
     | '/oauth/callback'
   id:
     | '__root__'
@@ -120,6 +131,7 @@ export interface FileRouteTypes {
     | '/import'
     | '/incomes'
     | '/reports'
+    | '/tags'
     | '/oauth/callback'
   fileRoutesById: FileRoutesById
 }
@@ -131,11 +143,19 @@ export interface RootRouteChildren {
   ImportRoute: typeof ImportRoute
   IncomesRoute: typeof IncomesRoute
   ReportsRoute: typeof ReportsRoute
+  TagsRoute: typeof TagsRoute
   OauthCallbackRoute: typeof OauthCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/tags': {
+      id: '/tags'
+      path: '/tags'
+      fullPath: '/tags'
+      preLoaderRoute: typeof TagsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reports': {
       id: '/reports'
       path: '/reports'
@@ -203,6 +223,7 @@ const rootRouteChildren: RootRouteChildren = {
   ImportRoute: ImportRoute,
   IncomesRoute: IncomesRoute,
   ReportsRoute: ReportsRoute,
+  TagsRoute: TagsRoute,
   OauthCallbackRoute: OauthCallbackRoute,
 }
 export const routeTree = rootRouteImport

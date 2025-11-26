@@ -1,4 +1,4 @@
-import { Expense, Category, Subcategory, ExpenseItem } from '@prisma/client';
+import { Expense, Category, Subcategory, ExpenseItem, Tag, ExpenseTag } from '@prisma/client';
 import { ExpenseItemResponseDto } from './expense-item-response.dto';
 
 export class CategoryResponseDto {
@@ -7,6 +7,12 @@ export class CategoryResponseDto {
   type: string;
   colorCode: string | null;
   icon: string | null;
+}
+
+export class TagResponseDto {
+  id: string;
+  name: string;
+  colorCode: string | null;
 }
 
 export class ExpenseResponseDto {
@@ -27,6 +33,7 @@ export class ExpenseResponseDto {
   attachmentCount?: number; // number of active attachments
   items?: ExpenseItemResponseDto[]; // expense line items
   itemCount?: number; // count of items (for list views)
+  tags?: TagResponseDto[]; // associated tags
 
   static fromEntity(
     expense: Expense & {
@@ -35,6 +42,7 @@ export class ExpenseResponseDto {
       attachmentCount?: number;
       itemCount?: number;
       items?: (ExpenseItem & { category?: Category | null; subcategory?: Subcategory | null })[];
+      expenseTags?: (ExpenseTag & { tag: Tag })[];
     },
   ): ExpenseResponseDto {
     return {
@@ -69,6 +77,11 @@ export class ExpenseResponseDto {
       items: expense.items?.map((item) => ExpenseItemResponseDto.fromEntity(item)),
       // Use itemCount from aggregation if provided, otherwise count from items array
       itemCount: (expense as any).itemCount ?? expense.items?.length,
+      tags: expense.expenseTags?.map((et) => ({
+        id: et.tag.id,
+        name: et.tag.name,
+        colorCode: et.tag.colorCode,
+      })),
     };
   }
 }
