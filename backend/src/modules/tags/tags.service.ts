@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  ConflictException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTagDto, UpdateTagDto, TagResponseDto } from './dto';
 
@@ -67,11 +63,7 @@ export class TagsService {
   /**
    * Update an existing tag
    */
-  async update(
-    userId: string,
-    tagId: string,
-    dto: UpdateTagDto,
-  ): Promise<TagResponseDto> {
+  async update(userId: string, tagId: string, dto: UpdateTagDto): Promise<TagResponseDto> {
     // Verify ownership
     const existing = await this.prisma.tag.findFirst({
       where: { id: tagId, userId },
@@ -128,11 +120,7 @@ export class TagsService {
   /**
    * Find or create a tag by name (for inline creation)
    */
-  async findOrCreate(
-    userId: string,
-    name: string,
-    colorCode?: string,
-  ): Promise<TagResponseDto> {
+  async findOrCreate(userId: string, name: string, colorCode?: string): Promise<TagResponseDto> {
     const existing = await this.prisma.tag.findFirst({
       where: {
         userId,

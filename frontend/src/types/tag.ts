@@ -2,8 +2,8 @@ export interface Tag {
   id: string;
   name: string;
   colorCode: string | null;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CreateTagDto {

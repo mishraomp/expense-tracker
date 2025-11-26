@@ -114,9 +114,9 @@ describe('TagsService', () => {
 
     it('throws ConflictException when duplicate name exists', async () => {
       mockPrisma.tag.findFirst.mockResolvedValueOnce(mockTag);
-      await expect(
-        service.create('user-1', { name: 'Hardware' }),
-      ).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.create('user-1', { name: 'Hardware' })).rejects.toBeInstanceOf(
+        ConflictException,
+      );
     });
   });
 
@@ -135,18 +135,18 @@ describe('TagsService', () => {
 
     it('throws NotFoundException when tag not found', async () => {
       mockPrisma.tag.findFirst.mockResolvedValueOnce(null);
-      await expect(
-        service.update('user-1', 'nonexistent', { name: 'New' }),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.update('user-1', 'nonexistent', { name: 'New' })).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
 
     it('throws ConflictException when new name duplicates another tag', async () => {
       mockPrisma.tag.findFirst
         .mockResolvedValueOnce(mockTag) // First call: find existing tag
         .mockResolvedValueOnce({ id: 'tag-2', name: 'Existing' }); // Second call: check duplicate
-      await expect(
-        service.update('user-1', 'tag-1', { name: 'Existing' }),
-      ).rejects.toBeInstanceOf(ConflictException);
+      await expect(service.update('user-1', 'tag-1', { name: 'Existing' })).rejects.toBeInstanceOf(
+        ConflictException,
+      );
     });
 
     it('allows updating with same name (case-insensitive check)', async () => {

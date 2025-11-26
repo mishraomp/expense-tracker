@@ -16,7 +16,7 @@ import { toYYYYMMDD } from '@/services/date';
 import type { ExpenseListQuery, Expense } from '../types/expense.types';
 import DeleteConfirmModal from './DeleteConfirmModal';
 import { useDeleteExpense } from '../api/expenseApi';
-import { TagBadge } from '@/components/tags';
+import { TagBadge, TagFilterSelect } from '@/components/tags';
 
 interface ExpensesTableProps {
   filters?: Omit<ExpenseListQuery, 'page' | 'pageSize'>;
@@ -183,23 +183,12 @@ export default function ExpensesTable({
     [filters, onFilterChange],
   );
 
-  const handleTagSelectChange = useCallback(
-    (e: React.ChangeEvent<HTMLSelectElement>) => {
-      const value = e.target.value;
-      if (!value) {
-        onFilterChange?.({
-          ...filters,
-          tagIds: undefined,
-        });
-      } else {
-        const currentTagIds = filters.tagIds || [];
-        if (!currentTagIds.includes(value)) {
-          onFilterChange?.({
-            ...filters,
-            tagIds: [...currentTagIds, value],
-          });
-        }
-      }
+  const handleTagFilterChange = useCallback(
+    (tagIds: string[]) => {
+      onFilterChange?.({
+        ...filters,
+        tagIds: tagIds.length > 0 ? tagIds : undefined,
+      });
     },
     [filters, onFilterChange],
   );
@@ -549,38 +538,13 @@ export default function ExpensesTable({
         />
       </th>
       {/* Tags column: Tag filter */}
-      <th>
-        <select
-          className="form-select form-select-sm"
-          value=""
-          onChange={handleTagSelectChange}
-          aria-label="Filter by tag"
-        >
-          <option value="">Filter by tag...</option>
-          {allTags
-            .filter((t) => !filters.tagIds?.includes(t.id))
-            .map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-        </select>
-        {filters.tagIds && filters.tagIds.length > 0 && (
-          <div className="tag-list mt-1">
-            {filters.tagIds.map((tagId) => {
-              const tag = allTags.find((t) => t.id === tagId);
-              if (!tag) return null;
-              return (
-                <TagBadge
-                  key={tag.id}
-                  tag={tag}
-                  size="sm"
-                  onRemove={() => handleTagFilter(tag.id)}
-                />
-              );
-            })}
-          </div>
-        )}
+      <th className="filter-cell-overflow">
+        <TagFilterSelect
+          tags={allTags}
+          selectedTagIds={filters.tagIds || []}
+          onChange={handleTagFilterChange}
+          placeholder="Filter by tag..."
+        />
       </th>
       {/* Actions: Clear button */}
       <th className="text-center">
@@ -697,9 +661,14 @@ export default function ExpensesTable({
                     <tr
                       key={row.id}
                       onClick={(e) => {
-                        // Avoid triggering edit when clicking filter badges
+                        // Avoid triggering edit when clicking filter badges or tag badges
                         const target = e.target as HTMLElement;
-                        if (target.closest('button')) return;
+                        if (
+                          target.closest('button') ||
+                          target.closest('.tag-badge') ||
+                          target.closest('.category-badge')
+                        )
+                          return;
                         handleEdit(row.original);
                       }}
                       className="table-row-clickable cursor-pointer"

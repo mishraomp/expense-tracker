@@ -1,4 +1,15 @@
-import { IsOptional, IsInt, Min, Max, IsUUID, IsDateString, IsEnum, IsString, MaxLength, IsArray } from 'class-validator';
+import {
+  IsOptional,
+  IsInt,
+  Min,
+  Max,
+  IsUUID,
+  IsDateString,
+  IsEnum,
+  IsString,
+  MaxLength,
+  IsArray,
+} from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 
 export enum SortOrder {
@@ -69,7 +80,10 @@ export class ExpenseListQueryDto {
   @Transform(({ value }) => {
     // Handle comma-separated string from query params
     if (typeof value === 'string') {
-      return value.split(',').map((id: string) => id.trim()).filter(Boolean);
+      return value
+        .split(',')
+        .map((id: string) => id.trim())
+        .filter(Boolean);
     }
     return value;
   })

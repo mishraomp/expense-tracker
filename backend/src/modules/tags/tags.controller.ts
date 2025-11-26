@@ -32,10 +32,7 @@ export class TagsController {
    * Get a single tag by ID
    */
   @Get(':id')
-  async findOne(
-    @Request() req,
-    @Param('id') id: string,
-  ): Promise<TagResponseDto> {
+  async findOne(@Request() req, @Param('id') id: string): Promise<TagResponseDto> {
     const userId = req.user.sub;
     return this.tagsService.findOne(userId, id);
   }
@@ -44,10 +41,7 @@ export class TagsController {
    * Create a new tag
    */
   @Post()
-  async create(
-    @Request() req,
-    @Body() dto: CreateTagDto,
-  ): Promise<TagResponseDto> {
+  async create(@Request() req, @Body() dto: CreateTagDto): Promise<TagResponseDto> {
     const userId = req.user.sub;
     return this.tagsService.create(userId, dto);
   }
@@ -70,10 +64,7 @@ export class TagsController {
    */
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async delete(
-    @Request() req,
-    @Param('id') id: string,
-  ): Promise<void> {
+  async delete(@Request() req, @Param('id') id: string): Promise<void> {
     const userId = req.user.sub;
     return this.tagsService.delete(userId, id);
   }
