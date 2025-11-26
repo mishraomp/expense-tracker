@@ -13,7 +13,7 @@ export function ImportErrorList({ errors }: ImportErrorListProps) {
     <div className="mt-4">
       <h4 className="h6 text-danger mb-2">Validation Errors ({errors.length})</h4>
       <div className="border border-danger-subtle rounded">
-        <div className="table-responsive" style={{ maxHeight: '24rem' }}>
+        <div className="table-responsive error-list-scroll">
           <table className="table table-sm mb-0 align-middle">
             <thead className="table-danger sticky-top">
               <tr>

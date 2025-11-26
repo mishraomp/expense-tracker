@@ -30,8 +30,8 @@ export default function ExpenseListItem({ expense, onEdit, onDelete }: ExpenseLi
         {expense.category && (
           <div className="d-flex flex-column">
             <span
-              className="badge mb-1"
-              style={{ backgroundColor: expense.category.colorCode || '#6c757d', color: '#fff' }}
+              className="badge mb-1 text-white"
+              style={{ backgroundColor: expense.category.colorCode || '#6c757d' }}
             >
               {expense.category.name}
             </span>
@@ -41,7 +41,7 @@ export default function ExpenseListItem({ expense, onEdit, onDelete }: ExpenseLi
           </div>
         )}
       </td>
-      <td className="text-truncate" style={{ maxWidth: '18.75rem' }}>
+      <td className="text-truncate mw-12">
         {expense.description || <em className="text-muted">No description</em>}
       </td>
       <td>

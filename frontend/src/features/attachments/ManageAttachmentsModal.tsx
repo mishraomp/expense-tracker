@@ -59,12 +59,11 @@ const ManageAttachmentsModal: React.FC<ManageAttachmentsModalProps> = ({
 
   return (
     <div
-      className="modal show d-block"
+      className="modal show d-block modal-backdrop-custom"
       tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-labelledby="manage-attachments-title"
-      style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

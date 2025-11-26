@@ -19,7 +19,7 @@ export default function ExpenseFormModal({
 
   return createPortal(
     <>
-      <div className="modal show d-block" style={{ zIndex: 1055 }} role="dialog" aria-modal="true">
+      <div className="modal show d-block z-modal" role="dialog" aria-modal="true">
         <div className="modal-dialog modal-lg" role="document">
           <div className="modal-content">
             <div className="modal-header">
@@ -37,7 +37,7 @@ export default function ExpenseFormModal({
           </div>
         </div>
       </div>
-      <div className="modal-backdrop show" style={{ zIndex: 1050 }}></div>
+      <div className="modal-backdrop show z-modal-backdrop"></div>
     </>,
     document.body,
   );

@@ -27,8 +27,7 @@ export default function DeleteConfirmModal({
   return createPortal(
     <>
       <div
-        className="modal show d-block"
-        style={{ zIndex: 1055 }}
+        className="modal show d-block z-modal"
         tabIndex={-1}
         role="dialog"
         aria-labelledby="deleteModalLabel"
@@ -66,7 +65,7 @@ export default function DeleteConfirmModal({
           </div>
         </div>
       </div>
-      <div className="modal-backdrop show" style={{ zIndex: 1050 }}></div>
+      <div className="modal-backdrop show z-modal-backdrop"></div>
     </>,
     document.body,
   );

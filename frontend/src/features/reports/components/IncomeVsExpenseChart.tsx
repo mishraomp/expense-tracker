@@ -190,7 +190,7 @@ export const IncomeVsExpenseChart = ({ report, onMonthClick }: IncomeVsExpenseCh
       .attr('x', 20)
       .attr('y', 12)
       .text((d) => d.label)
-      .style('font-size', innerWidth < 420 ? '10px' : '12px');
+      .style('font-size', innerWidth < 420 ? '0.625rem' : '0.75rem');
   }, [report, prepared, onMonthClick]);
 
   if (!report || report.incomeByMonth.length === 0) {
@@ -202,8 +202,8 @@ export const IncomeVsExpenseChart = ({ report, onMonthClick }: IncomeVsExpenseCh
   }
 
   return (
-    <div ref={containerRef} style={{ width: '100%' }}>
-      <svg ref={svgRef} style={{ width: '100%', height: 'auto' }}></svg>
+    <div ref={containerRef} className="chart-container">
+      <svg ref={svgRef} className="chart-svg"></svg>
     </div>
   );
 };

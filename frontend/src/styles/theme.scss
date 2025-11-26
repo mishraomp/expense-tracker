@@ -1,6 +1,10 @@
 // Keep app-specific tweaks minimal to let Bootswatch Zephyr styles apply.
 // Avoid overriding colors/typography/backgrounds defined by the theme.
 
+// ============================================================================
+// BASE STYLES
+// ============================================================================
+
 // Example spacing utility additions (safe with themes):
 .content-section {
   margin-block: 1rem;
@@ -25,7 +29,195 @@ canvas {
   height: auto;
 }
 
-/* Reports page specific tweaks to keep it compact and fit to screen */
+// ============================================================================
+// REUSABLE UTILITY CLASSES (replacing inline styles)
+// ============================================================================
+
+// Max-width utilities (using rem instead of px)
+.mw-7 {
+  max-width: 7.5rem; // ~120px
+}
+
+.mw-9 {
+  max-width: 9.375rem; // ~150px
+}
+
+.mw-12 {
+  max-width: 12.5rem; // ~200px
+}
+
+.mw-35 {
+  max-width: 35rem; // 560px - for OAuth callback container
+}
+
+// Min-height utilities
+.min-h-22 {
+  min-height: 22rem; // 350px equivalent for charts
+}
+
+.min-h-31 {
+  min-height: 31.25rem; // 500px for preview modal body
+}
+
+// Fixed dimensions for avatars and icons
+.avatar-sm {
+  width: 1.75rem;
+  height: 1.75rem;
+  font-size: 0.875rem;
+}
+
+.avatar-md {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.icon-sm {
+  width: 1em;
+  height: 1em;
+  vertical-align: middle;
+}
+
+// Category badge styling
+.category-badge {
+  cursor: pointer;
+  max-width: 7.5rem;
+  border: none;
+
+  &.category-badge--active {
+    outline: 0.125rem solid var(--bs-primary);
+  }
+}
+
+.category-badge-icon {
+  font-size: 1.1em;
+  line-height: 1;
+}
+
+// Table column width utilities (percentage-based for responsiveness)
+.col-w-10 {
+  width: 10%;
+}
+
+.col-w-15 {
+  width: 15%;
+}
+
+.col-w-20 {
+  width: 20%;
+}
+
+.col-w-25 {
+  width: 25%;
+}
+
+.col-w-30 {
+  width: 30%;
+}
+
+// Truncate cell utilities
+.cell-truncate-sm {
+  max-width: 6.25rem; // ~100px
+}
+
+.cell-truncate-md {
+  max-width: 9.375rem; // ~150px
+}
+
+.cell-truncate-lg {
+  max-width: 12.5rem; // ~200px
+}
+
+// Chart containers
+.chart-container {
+  width: 100%;
+}
+
+.chart-svg {
+  width: 100%;
+  height: auto;
+}
+
+// Modal backdrop
+.modal-backdrop-custom {
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+// Z-index utilities for modals
+.z-modal {
+  z-index: 1055;
+}
+
+.z-modal-backdrop {
+  z-index: 1050;
+}
+
+// Progress bar container
+.progress-track {
+  width: 100%;
+  background-color: var(--bs-gray-300);
+  border-radius: 0.25rem;
+  height: 1.25rem;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 0.25rem;
+  transition: width 0.3s ease;
+}
+
+// Preview modal content sizing
+.preview-iframe {
+  width: 100%;
+  height: 37.5rem; // ~600px
+  border: none;
+}
+
+.preview-image {
+  max-width: 100%;
+  max-height: 37.5rem; // ~600px
+}
+
+// Import error list scrollable container
+.error-list-scroll {
+  max-height: 24rem;
+}
+
+// Hidden file inputs
+.file-input-hidden {
+  display: none;
+}
+
+// Cursor pointer utility
+.cursor-pointer {
+  cursor: pointer;
+}
+
+// Subcategory badge variant
+.badge-subcategory {
+  opacity: 0.75;
+}
+
+// Small text variant for subcategory manager
+.text-xs {
+  font-size: 0.75rem;
+}
+
+// Form controls in mapping suggestions
+.mapping-input {
+  margin-left: 0.625rem;
+  padding: 0.3125rem;
+  width: 12.5rem;
+}
+
+// Table with auto layout
+.table-auto {
+  table-layout: auto;
+}
+
+// ============================================================================
+// REPORTS PAGE
+// ============================================================================
+
 .reports-page {
   font-size: 0.95rem;
 
@@ -34,11 +226,10 @@ canvas {
   }
 
   h1.h3 {
-    font-size: 1.25rem; /* match Expenses smaller heading */
+    font-size: 1.25rem;
   }
 
-  // Additional desktop trimming to reduce vertical space
-  @media (min-height: 800px) {
+  @media (min-height: 50rem) {
     .card-body {
       padding: 0.6rem 0.75rem;
     }
@@ -48,13 +239,15 @@ canvas {
   }
 }
 
-/* Modal slide and small-screen drawer behavior */
+// ============================================================================
+// MODAL ANIMATIONS
+// ============================================================================
+
 .modal.modal-slide .modal-dialog {
   transition: transform 250ms ease-out;
 }
 
-/* Off-screen by default for mobile -> slide in */
-@media (max-width: 576px) {
+@media (max-width: 36rem) {
   .modal.modal-slide .modal-dialog {
     transform: translateY(100%);
     margin: 0;
@@ -65,8 +258,7 @@ canvas {
   }
 }
 
-/* Slide from right on small landscape devices */
-@media (max-width: 767px) and (orientation: landscape) {
+@media (max-width: 47.9375rem) and (orientation: landscape) {
   .modal.modal-slide .modal-dialog {
     transform: translateX(100%);
     margin: 0;
@@ -74,5 +266,51 @@ canvas {
 
   .modal.modal-slide.show .modal-dialog {
     transform: translateX(0);
+  }
+}
+
+// ============================================================================
+// RESPONSIVE TABLE IMPROVEMENTS
+// ============================================================================
+
+// On smaller screens, allow text wrapping in table cells
+@media (max-width: 48rem) {
+  .table-responsive-wrap {
+    th,
+    td {
+      white-space: normal;
+      word-break: break-word;
+    }
+  }
+}
+
+// Item list tables responsive behavior
+.expense-item-table {
+  th,
+  td {
+    &.col-name {
+      width: 30%;
+    }
+    &.col-amount {
+      width: 15%;
+    }
+    &.col-category {
+      width: 20%;
+    }
+    &.col-notes {
+      width: 25%;
+    }
+    &.col-actions {
+      width: 10%;
+    }
+  }
+
+  @media (max-width: 36rem) {
+    th,
+    td {
+      &.col-notes {
+        display: none;
+      }
+    }
   }
 }

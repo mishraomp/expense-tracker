@@ -113,7 +113,7 @@ export const IncomeVsExpenseReport = () => {
       <div className="card">
         <div className="card-body">
           {/* Chart container — swap between bar chart and pie chart when a month is selected */}
-          <div className="report-chart-container" style={{ minHeight: 350 }}>
+          <div className="report-chart-container min-h-22">
             <IncomeVsExpenseChart report={query.data} onMonthClick={onMonthClick} />
           </div>
           <SubcategoryBreakdownModal

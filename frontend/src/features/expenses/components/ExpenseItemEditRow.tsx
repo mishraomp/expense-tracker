@@ -198,24 +198,13 @@ export default function ExpenseItemEditRow({
 
   // Display mode
   return (
-    <tr
-      className="cursor-pointer"
-      onClick={() => setIsEditing(true)}
-      style={{ cursor: 'pointer' }}
-      title="Click to edit"
-    >
-      <td className="text-truncate" style={{ maxWidth: '150px' }} title={item.name}>
+    <tr className="cursor-pointer" onClick={() => setIsEditing(true)} title="Click to edit">
+      <td className="text-truncate cell-truncate-md" title={item.name}>
         {item.name}
       </td>
       <td className="text-end">${item.amount.toFixed(2)}</td>
-      <td className="text-truncate" style={{ maxWidth: '100px' }}>
-        {getCategoryName(item.categoryId)}
-      </td>
-      <td
-        className="text-truncate text-muted small"
-        style={{ maxWidth: '150px' }}
-        title={item.notes || ''}
-      >
+      <td className="text-truncate cell-truncate-sm">{getCategoryName(item.categoryId)}</td>
+      <td className="text-truncate text-muted small cell-truncate-md" title={item.notes || ''}>
         {item.notes || '-'}
       </td>
       <td className="text-end">

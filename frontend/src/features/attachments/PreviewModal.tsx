@@ -57,12 +57,11 @@ export default function PreviewModal({ isOpen, onClose, attachment }: PreviewMod
 
   return (
     <div
-      className="modal show d-block"
+      className="modal show d-block modal-backdrop-custom"
       tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-labelledby="preview-modal-title"
-      style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -81,11 +80,11 @@ export default function PreviewModal({ isOpen, onClose, attachment }: PreviewMod
               ref={closeButtonRef}
             ></button>
           </div>
-          <div className="modal-body" style={{ minHeight: '500px' }}>
+          <div className="modal-body min-h-31">
             {isPDF && (
               <iframe
                 src={`${attachment.webViewLink}#embedded=true`}
-                style={{ width: '100%', height: '600px', border: 'none' }}
+                className="preview-iframe"
                 title={`Preview of ${attachment.originalFilename}`}
               />
             )}
@@ -94,8 +93,7 @@ export default function PreviewModal({ isOpen, onClose, attachment }: PreviewMod
                 <img
                   src={attachment.webViewLink}
                   alt={attachment.originalFilename}
-                  style={{ maxWidth: '100%', maxHeight: '600px' }}
-                  className="img-fluid"
+                  className="img-fluid preview-image"
                 />
               </div>
             )}

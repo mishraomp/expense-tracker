@@ -134,7 +134,7 @@ export const SubcategoryBreakdownChart = ({
       .attr('transform', (d) => `translate(${labelArc.centroid(d)})`)
       .attr('text-anchor', 'middle')
       .style('fill', 'white')
-      .style('font-size', '12px')
+      .style('font-size', '0.75rem')
       .style('font-weight', 'bold')
       .style('pointer-events', 'none')
       .text((d) => (d.data.percentage > 5 ? `$${Math.round(d.data.amount).toLocaleString()}` : ''));
@@ -179,7 +179,7 @@ export const SubcategoryBreakdownChart = ({
       .attr('x', 24)
       .attr('y', 9)
       .attr('dy', '0.35em')
-      .style('font-size', '11px')
+      .style('font-size', '0.6875rem')
       .text(
         (d) =>
           `${d.subcategory} (${d.category}): $${d.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${d.percentage.toFixed(1)}%)`,
@@ -195,8 +195,8 @@ export const SubcategoryBreakdownChart = ({
   }
 
   return (
-    <div ref={containerRef} style={{ width: '100%' }}>
-      <svg ref={svgRef} style={{ width: '100%', height: 'auto' }}></svg>
+    <div ref={containerRef} className="chart-container">
+      <svg ref={svgRef} className="chart-svg"></svg>
     </div>
   );
 };
