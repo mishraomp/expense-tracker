@@ -1,0 +1,21 @@
+{
+  "name": "expense-tracker-release",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build:backend": "cd backend && npm ci && npm run build",
+    "build:frontend": "cd frontend && npm ci && npm run build",
+    "build": "npm run build:backend && npm run build:frontend",
+    "package:deb": "./scripts/package-deb.sh",
+    "package:msi": "powershell -ExecutionPolicy Bypass -File ./scripts/package-msi.ps1",
+    "release": "semantic-release"
+  },
+  "devDependencies": {
+    "semantic-release": "^21.0.0",
+    "@semantic-release/changelog": "^6.0.0",
+    "@semantic-release/git": "^11.0.0",
+    "@semantic-release/github": "^9.0.0",
+    "@semantic-release/commit-analyzer": "^9.0.0",
+    "@semantic-release/release-notes-generator": "^10.0.0"
+  }
+}
