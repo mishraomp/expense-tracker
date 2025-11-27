@@ -69,12 +69,16 @@ export const useCreateExpenseItem = () => {
       return response.data;
     },
     onSuccess: (_data, variables) => {
-      // Invalidate items list and parent expense detail
+      // Invalidate items list, parent expense detail, and expense list (MV includes item counts)
       queryClient.invalidateQueries({
         queryKey: expenseItemKeys.all(variables.expenseId),
       });
       queryClient.invalidateQueries({
         queryKey: expenseKeys.detail(variables.expenseId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: expenseKeys.lists(),
+        refetchType: 'active',
       });
       toast.success('Item added successfully');
     },
@@ -103,12 +107,16 @@ export const useBulkCreateExpenseItems = () => {
       return response.data;
     },
     onSuccess: (_data, variables) => {
-      // Invalidate items list and parent expense detail
+      // Invalidate items list, parent expense detail, and expense list (MV includes item counts)
       queryClient.invalidateQueries({
         queryKey: expenseItemKeys.all(variables.expenseId),
       });
       queryClient.invalidateQueries({
         queryKey: expenseKeys.detail(variables.expenseId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: expenseKeys.lists(),
+        refetchType: 'active',
       });
       toast.success('Items added successfully');
     },
@@ -158,12 +166,16 @@ export const useUpdateExpenseItem = () => {
       return { previousItem };
     },
     onSuccess: (_data, variables) => {
-      // Invalidate items list and parent expense detail
+      // Invalidate items list, parent expense detail, and expense list (MV includes item names)
       queryClient.invalidateQueries({
         queryKey: expenseItemKeys.all(variables.expenseId),
       });
       queryClient.invalidateQueries({
         queryKey: expenseKeys.detail(variables.expenseId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: expenseKeys.lists(),
+        refetchType: 'active',
       });
       toast.success('Item updated successfully');
     },
@@ -229,12 +241,16 @@ export const useDeleteExpenseItem = () => {
       return { previousItems };
     },
     onSuccess: (_data, variables) => {
-      // Invalidate items list and parent expense detail
+      // Invalidate items list, parent expense detail, and expense list (MV includes item counts)
       queryClient.invalidateQueries({
         queryKey: expenseItemKeys.all(variables.expenseId),
       });
       queryClient.invalidateQueries({
         queryKey: expenseKeys.detail(variables.expenseId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: expenseKeys.lists(),
+        refetchType: 'active',
       });
       toast.success('Item deleted successfully');
     },
@@ -260,12 +276,16 @@ export const useDeleteAllExpenseItems = () => {
       await api.delete(`/expenses/${expenseId}/items`);
     },
     onSuccess: (_data, expenseId) => {
-      // Invalidate items list and parent expense detail
+      // Invalidate items list, parent expense detail, and expense list (MV includes item counts)
       queryClient.invalidateQueries({
         queryKey: expenseItemKeys.all(expenseId),
       });
       queryClient.invalidateQueries({
         queryKey: expenseKeys.detail(expenseId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: expenseKeys.lists(),
+        refetchType: 'active',
       });
       toast.success('All items deleted successfully');
     },

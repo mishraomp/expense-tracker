@@ -2,10 +2,43 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
-import { ExpenseResponseDto, ExpenseListResponseDto } from './dto/expense-response.dto';
+import {
+  ExpenseResponseDto,
+  ExpenseListResponseDto,
+  TagResponseDto,
+} from './dto/expense-response.dto';
 import { ExpenseListQueryDto } from './dto/expense-list-query.dto';
 import { Decimal } from '@prisma/client/runtime/client.js';
 import { AttachmentsService } from '../attachments/attachments.service';
+
+/**
+ * Interface for rows returned from mv_expense_list materialized view
+ */
+interface ExpenseListMvRow {
+  expense_id: string;
+  user_id: string;
+  category_id: string;
+  subcategory_id: string | null;
+  amount: Decimal;
+  date: Date;
+  description: string | null;
+  source: string;
+  status: string;
+  merchant_name: string | null;
+  created_at: Date;
+  updated_at: Date;
+  deleted_at: Date | null;
+  category_name: string;
+  category_type: string;
+  category_color: string | null;
+  category_icon: string | null;
+  subcategory_name: string | null;
+  tags: Array<{ id: string; name: string; colorCode: string | null }>;
+  tag_ids: string[];
+  attachment_count: number;
+  item_count: number;
+  item_names_text: string;
+}
 
 @Injectable()
 export class ExpensesService {
@@ -234,153 +267,156 @@ export class ExpensesService {
       itemName,
       tagIds,
     } = query;
-    const skip = (page - 1) * pageSize;
+    const offset = (page - 1) * pageSize;
 
-    // Build where clause
-    const where: any = { userId, deletedAt: null };
+    // Build WHERE conditions for the materialized view query
+    const conditions: string[] = ['user_id = $1'];
+    const params: any[] = [userId];
+    let paramIndex = 2;
 
     if (categoryId) {
-      where.categoryId = categoryId;
+      conditions.push(`category_id = $${paramIndex++}`);
+      params.push(categoryId);
     }
 
     if (subcategoryId) {
-      where.subcategoryId = subcategoryId;
+      conditions.push(`subcategory_id = $${paramIndex++}`);
+      params.push(subcategoryId);
     }
 
-    // Item name filter - find expenses that have items matching the name (case-insensitive)
+    // Item name filter using ILIKE on pre-aggregated item_names_text
     if (itemName) {
-      where.items = {
-        some: {
-          name: { contains: itemName, mode: 'insensitive' },
-          deletedAt: null,
-        },
-      };
+      conditions.push(`item_names_text ILIKE $${paramIndex++}`);
+      params.push(`%${itemName}%`);
     }
 
-    // Tag filter - find expenses that have any of the specified tags
+    // Tag filter using array overlap operator
     if (tagIds && tagIds.length > 0) {
-      where.expenseTags = {
-        some: {
-          tagId: { in: tagIds },
-        },
-      };
+      conditions.push(`tag_ids && $${paramIndex++}::uuid[]`);
+      params.push(tagIds);
     }
 
-    // Date filters can be (start/end) OR (filterYear/filterMonth)
-    const dateOr: any[] = [];
-    if (startDate || endDate) {
-      const cond: any = {};
-      if (startDate) cond.gte = new Date(startDate);
-      if (endDate) cond.lte = new Date(endDate);
-      dateOr.push({ date: cond });
+    // Date filters
+    if (startDate) {
+      conditions.push(`date >= $${paramIndex++}::date`);
+      params.push(startDate);
     }
-    if (filterYear) {
-      const y = filterYear;
-      const m = filterMonth ? filterMonth - 1 : undefined; // JS month 0-11
-      const from = m !== undefined ? new Date(y, m, 1) : new Date(y, 0, 1);
-      const to = m !== undefined ? new Date(y, m + 1, 0) : new Date(y, 11, 31);
-      dateOr.push({ date: { gte: from, lte: to } });
-    }
-    if (dateOr.length === 1) {
-      // Single condition
-      where.date = dateOr[0].date;
-    } else if (dateOr.length > 1) {
-      // Multiple conditions OR'ed together
-      where.OR = dateOr;
+    if (endDate) {
+      conditions.push(`date <= $${paramIndex++}::date`);
+      params.push(endDate);
     }
 
-    // Fetch expenses, total count and sum in parallel
-    // Build orderBy array for multi-field sorting
-    const validSortFields = ['date', 'amount', 'createdAt', 'updatedAt'];
-    const orderBy: Array<Record<string, 'asc' | 'desc'>> = [];
+    // Year/month filter (alternative to start/end date)
+    if (filterYear && !startDate && !endDate) {
+      if (filterMonth) {
+        // Specific month
+        const monthStart = `${filterYear}-${String(filterMonth).padStart(2, '0')}-01`;
+        conditions.push(`date >= $${paramIndex++}::date`);
+        params.push(monthStart);
+        conditions.push(`date < ($${paramIndex++}::date + INTERVAL '1 month')::date`);
+        params.push(monthStart);
+      } else {
+        // Entire year
+        conditions.push(`date >= $${paramIndex++}::date`);
+        params.push(`${filterYear}-01-01`);
+        conditions.push(`date <= $${paramIndex++}::date`);
+        params.push(`${filterYear}-12-31`);
+      }
+    }
 
-    // Ensure sortBy and sortOrder are arrays
+    const whereClause = conditions.join(' AND ');
+
+    // Build ORDER BY clause for multi-field sorting
+    const validSortFields: Record<string, string> = {
+      date: 'date',
+      amount: 'amount',
+      createdAt: 'created_at',
+      updatedAt: 'updated_at',
+    };
+
     const sortByArr = Array.isArray(sortBy) ? sortBy : [sortBy];
     const sortOrderArr = Array.isArray(sortOrder) ? sortOrder : [sortOrder];
 
+    const orderByParts: string[] = [];
     for (let i = 0; i < sortByArr.length; i++) {
-      const field = validSortFields.includes(sortByArr[i]) ? sortByArr[i] : 'date';
-      const order = sortOrderArr[i] || sortOrderArr[0] || 'desc';
-      orderBy.push({ [field]: order as 'asc' | 'desc' });
+      const field = validSortFields[sortByArr[i]] || 'date';
+      const order = (sortOrderArr[i] || sortOrderArr[0] || 'desc').toUpperCase();
+      orderByParts.push(`${field} ${order === 'ASC' ? 'ASC' : 'DESC'}`);
     }
 
-    // Fallback to date desc if no valid sort fields
-    if (orderBy.length === 0) {
-      orderBy.push({ date: 'desc' });
+    if (orderByParts.length === 0) {
+      orderByParts.push('date DESC');
     }
 
-    const [expenses, total, sumAgg] = await Promise.all([
-      this.prisma.expense.findMany({
-        where,
-        include: {
-          category: true,
-          subcategory: true,
-          expenseTags: { include: { tag: true } },
-        },
-        orderBy,
-        skip,
-        take: pageSize,
-      }),
-      this.prisma.expense.count({ where }),
-      this.prisma.expense.aggregate({ where, _sum: { amount: true } }),
+    const orderByClause = orderByParts.join(', ');
+
+    // Execute queries in parallel: data, count, and sum
+    const [dataResult, countResult, sumResult] = await Promise.all([
+      // Fetch paginated data from materialized view
+      this.prisma.$queryRawUnsafe<ExpenseListMvRow[]>(
+        `SELECT 
+          expense_id, user_id, category_id, subcategory_id,
+          amount, date, description, source, status, merchant_name,
+          created_at, updated_at, deleted_at,
+          category_name, category_type, category_color, category_icon,
+          subcategory_name, tags, tag_ids, attachment_count, item_count, item_names_text
+        FROM mv_expense_list
+        WHERE ${whereClause}
+        ORDER BY ${orderByClause}
+        LIMIT ${pageSize} OFFSET ${offset}`,
+        ...params,
+      ),
+      // Count total matching rows
+      this.prisma.$queryRawUnsafe<[{ count: bigint }]>(
+        `SELECT COUNT(*) as count FROM mv_expense_list WHERE ${whereClause}`,
+        ...params,
+      ),
+      // Sum total amount
+      this.prisma.$queryRawUnsafe<[{ total: Decimal | null }]>(
+        `SELECT COALESCE(SUM(amount), 0) as total FROM mv_expense_list WHERE ${whereClause}`,
+        ...params,
+      ),
     ]);
 
-    // OPTIMIZATION: Fetch attachment counts in bulk for all expenses at once
-    // Previously: This was done after pagination, which is correct
-    // Optimization: Use groupBy for more efficient counting
-    const expenseIds = expenses.map((e) => e.id);
-    let countsMap: Record<string, number> = {};
-    let itemCountsMap: Record<string, number> = {};
-    if (expenseIds.length) {
-      const [attachmentCounts, itemCounts] = await Promise.all([
-        this.prisma.attachments.groupBy({
-          by: ['linked_expense_id'],
-          where: {
-            linked_expense_id: { in: expenseIds },
-            status: 'ACTIVE',
-          },
-          _count: {
-            id: true,
-          },
-        }),
-        this.prisma.expenseItem.groupBy({
-          by: ['expenseId'],
-          where: {
-            expenseId: { in: expenseIds },
-            deletedAt: null,
-          },
-          _count: {
-            id: true,
-          },
-        }),
-      ]);
-
-      for (const count of attachmentCounts) {
-        if (count.linked_expense_id) {
-          countsMap[count.linked_expense_id] = count._count.id;
-        }
-      }
-
-      for (const count of itemCounts) {
-        if (count.expenseId) {
-          itemCountsMap[count.expenseId] = count._count.id;
-        }
-      }
-    }
-
+    const total = Number(countResult[0]?.count ?? 0);
+    const totalAmount = sumResult[0]?.total
+      ? new Decimal(sumResult[0].total).toNumber()
+      : 0;
     const totalPages = Math.ceil(total / pageSize);
 
-    const totalAmount = (sumAgg._sum.amount ?? new Decimal(0)).toNumber();
+    // Transform MV rows to response DTOs
+    const data: ExpenseResponseDto[] = dataResult.map((row) => ({
+      id: row.expense_id,
+      userId: row.user_id,
+      categoryId: row.category_id,
+      subcategoryId: row.subcategory_id,
+      amount: new Decimal(row.amount).toNumber(),
+      date: row.date instanceof Date
+        ? row.date.toISOString().split('T')[0]
+        : String(row.date).split('T')[0],
+      description: row.description,
+      source: row.source,
+      status: row.status,
+      merchantName: row.merchant_name,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      category: {
+        id: row.category_id,
+        name: row.category_name,
+        type: row.category_type,
+        colorCode: row.category_color,
+        icon: row.category_icon,
+      },
+      subcategory: row.subcategory_id && row.subcategory_name
+        ? { id: row.subcategory_id, name: row.subcategory_name }
+        : undefined,
+      attachmentCount: row.attachment_count,
+      itemCount: row.item_count,
+      tags: (row.tags || []) as TagResponseDto[],
+    }));
 
     return {
-      data: expenses.map((exp) =>
-        ExpenseResponseDto.fromEntity(
-          Object.assign(exp, {
-            attachmentCount: countsMap[exp.id] || 0,
-            itemCount: itemCountsMap[exp.id] || 0,
-          }),
-        ),
-      ),
+      data,
       pagination: { page, limit: pageSize, total, totalPages },
       summary: { totalAmount, count: total },
     };
