@@ -27,6 +27,8 @@ describe('ExpensesService', () => {
       $transaction: vi.fn(async (ops: any[]) =>
         Promise.all(ops.map((op) => (typeof op === 'function' ? op(mockPrisma) : op))),
       ),
+      // Mock for materialized view queries
+      $queryRawUnsafe: vi.fn(),
     };
     mockAttachmentsService = { listAttachments: vi.fn(async () => []) };
     svc = new ExpensesService(mockPrisma as any, mockAttachmentsService as any);
@@ -92,18 +94,35 @@ describe('ExpensesService', () => {
   });
 
   it('findAll returns data with attachment counts and pagination', async () => {
-    // Prepare mock expenses and attachments
-    const expenseRow = {
-      id: 'exp-1',
+    // Mock materialized view rows - using raw SQL now
+    const mvRow = {
+      expense_id: 'exp-1',
+      user_id: 'user-1',
+      category_id: 'cat-1',
+      subcategory_id: 'sub-1',
       amount: new Decimal(10),
       date: new Date('2025-01-01'),
-      category: { id: 'cat-1' },
-      subcategory: { id: 'sub-1' },
+      description: 'Test expense',
+      source: 'manual',
+      status: 'confirmed',
+      created_at: new Date(),
+      updated_at: new Date(),
+      category_name: 'Food',
+      category_color_code: '#ff0000',
+      category_icon: 'restaurant',
+      subcategory_name: 'Groceries',
+      tags: JSON.stringify([]),
+      tag_ids: [],
+      attachment_count: 1n,
+      item_count: 0n,
+      item_names_text: null,
     };
-    mockPrisma.expense.findMany.mockResolvedValueOnce([expenseRow]);
-    mockPrisma.expense.count.mockResolvedValueOnce(1);
-    mockPrisma.expense.aggregate.mockResolvedValueOnce({ _sum: { amount: new Decimal(10) } });
-    mockPrisma.attachments.findMany.mockResolvedValueOnce([{ linked_expense_id: 'exp-1' }]);
+
+    // Mock $queryRawUnsafe for data, count, and sum queries
+    mockPrisma.$queryRawUnsafe
+      .mockResolvedValueOnce([mvRow]) // data query
+      .mockResolvedValueOnce([{ count: 1n }]) // count query
+      .mockResolvedValueOnce([{ sum: new Decimal(10) }]); // sum query
 
     const res = await svc.findAll('user-1', { page: 1, pageSize: 20 } as any);
     expect(res.data).toHaveLength(1);
@@ -111,17 +130,36 @@ describe('ExpensesService', () => {
   });
 
   it('findAll supports filterYear and filterMonth', async () => {
-    const expenseRow = {
-      id: 'exp-1',
+    // Mock materialized view rows
+    const mvRow = {
+      expense_id: 'exp-1',
+      user_id: 'user-1',
+      category_id: 'cat-1',
+      subcategory_id: 'sub-1',
       amount: new Decimal(10),
       date: new Date('2025-03-01'),
-      category: { id: 'cat-1' },
-      subcategory: { id: 'sub-1' },
+      description: 'Test expense',
+      source: 'manual',
+      status: 'confirmed',
+      created_at: new Date(),
+      updated_at: new Date(),
+      category_name: 'Food',
+      category_color_code: '#ff0000',
+      category_icon: null,
+      subcategory_name: 'Groceries',
+      tags: JSON.stringify([]),
+      tag_ids: [],
+      attachment_count: 0n,
+      item_count: 0n,
+      item_names_text: null,
     };
-    mockPrisma.expense.findMany.mockResolvedValueOnce([expenseRow]);
-    mockPrisma.expense.count.mockResolvedValueOnce(1);
-    mockPrisma.expense.aggregate.mockResolvedValueOnce({ _sum: { amount: new Decimal(10) } });
-    mockPrisma.attachments.findMany.mockResolvedValueOnce([{ linked_expense_id: 'exp-1' }]);
+
+    // Mock $queryRawUnsafe for data, count, and sum queries
+    mockPrisma.$queryRawUnsafe
+      .mockResolvedValueOnce([mvRow]) // data query
+      .mockResolvedValueOnce([{ count: 1n }]) // count query
+      .mockResolvedValueOnce([{ sum: new Decimal(10) }]); // sum query
+
     const res = await svc.findAll('user-1', { filterYear: 2025, filterMonth: 3 } as any);
     expect(res.data[0]).toBeDefined();
   });
