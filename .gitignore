@@ -67,3 +67,4 @@ backend/uploads/*
 backups
 **/.tanstack/**
 backend/public/**
+.expense-tracker-pids.json
