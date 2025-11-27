@@ -48,11 +48,36 @@ export class ExpenseListQueryDto {
   endDate?: string;
 
   @IsOptional()
-  @IsEnum(SortOrder, { message: 'Sort order must be asc or desc' })
-  sortOrder?: SortOrder = SortOrder.DESC;
+  @IsArray({ message: 'Sort order must be an array' })
+  @IsEnum(SortOrder, { each: true, message: 'Each sort order must be asc or desc' })
+  @Transform(({ value }) => {
+    // Handle comma-separated string from query params
+    if (typeof value === 'string') {
+      return value.split(',').map((v: string) => v.trim());
+    }
+    // Handle single value (not array)
+    if (value && !Array.isArray(value)) {
+      return [value];
+    }
+    return value;
+  })
+  sortOrder?: SortOrder[] = [SortOrder.DESC];
 
   @IsOptional()
-  sortBy?: string = 'date';
+  @IsArray({ message: 'Sort by must be an array' })
+  @IsString({ each: true, message: 'Each sort field must be a string' })
+  @Transform(({ value }) => {
+    // Handle comma-separated string from query params
+    if (typeof value === 'string') {
+      return value.split(',').map((v: string) => v.trim());
+    }
+    // Handle single value (not array)
+    if (value && !Array.isArray(value)) {
+      return [value];
+    }
+    return value;
+  })
+  sortBy?: string[] = ['date'];
 
   // Additional optional year/month filters (OR-ed with start/end range)
   @IsOptional()
