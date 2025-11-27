@@ -87,7 +87,7 @@ export default function ExpensesTable({
       ...filters,
       page: pagination.pageIndex + 1,
       pageSize: pagination.pageSize,
-      sortOrder: sortOrderArr.length > 0 ? sortOrderArr : ['desc'],
+      sortOrder: sortOrderArr.length > 0 ? sortOrderArr : (['desc'] as ('asc' | 'desc')[]),
       sortBy: sortByArr.length > 0 ? sortByArr : ['amount'],
     };
   }, [filters, pagination.pageIndex, pagination.pageSize, sortByArr, sortOrderArr]);
