@@ -78,8 +78,8 @@ export interface ExpenseListQuery {
   // Additional date filters to be OR-ed on backend
   filterYear?: number;
   filterMonth?: number; // 1-12; ignored if year not provided
-  sortOrder?: 'asc' | 'desc';
-  sortBy?: string;
+  sortOrder?: ('asc' | 'desc')[];
+  sortBy?: string[];
   itemName?: string; // Filter expenses that have items containing this name
   tagIds?: string[]; // Filter expenses that have any of these tags
 }

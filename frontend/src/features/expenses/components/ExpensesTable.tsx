@@ -31,7 +31,11 @@ export default function ExpensesTable({
   onEdit,
   onFilterChange,
 }: ExpensesTableProps) {
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'date', desc: true }]);
+  // Default sort: Amount (highest first), then Date (newest first)
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: 'amount', desc: true },
+    { id: 'date', desc: true },
+  ]);
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 10,
@@ -74,18 +78,19 @@ export default function ExpensesTable({
     setPrevFilterKey(filterKey);
   }
 
-  const sortField = sorting.length > 0 ? sorting[0].id : 'date';
-  const sortDirection = sorting.length > 0 && !sorting[0].desc ? 'asc' : 'desc';
+  // Build sortBy and sortOrder arrays from TanStack sorting state
+  const sortByArr = sorting.map((s) => s.id);
+  const sortOrderArr = sorting.map((s) => (s.desc ? 'desc' : 'asc')) as ('asc' | 'desc')[];
 
   const queryParams = useMemo(() => {
     return {
       ...filters,
       page: pagination.pageIndex + 1,
       pageSize: pagination.pageSize,
-      sortOrder: sortDirection as 'asc' | 'desc',
-      sortBy: sortField,
+      sortOrder: sortOrderArr.length > 0 ? sortOrderArr : ['desc'],
+      sortBy: sortByArr.length > 0 ? sortByArr : ['amount'],
     };
-  }, [filters, pagination.pageIndex, pagination.pageSize, sortField, sortDirection]);
+  }, [filters, pagination.pageIndex, pagination.pageSize, sortByArr, sortOrderArr]);
 
   const { data, isLoading, error } = useExpenses(queryParams);
 

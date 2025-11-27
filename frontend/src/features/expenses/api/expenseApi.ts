@@ -33,8 +33,14 @@ export const useExpenses = (query: ExpenseListQuery = {}) => {
       if (query.subcategoryId) params.append('subcategoryId', query.subcategoryId);
       if (query.startDate) params.append('startDate', query.startDate);
       if (query.endDate) params.append('endDate', query.endDate);
-      if (query.sortOrder) params.append('sortOrder', query.sortOrder);
-      if (query.sortBy) params.append('sortBy', query.sortBy);
+      // Handle array sortOrder - join as comma-separated string
+      if (query.sortOrder && query.sortOrder.length > 0) {
+        params.append('sortOrder', query.sortOrder.join(','));
+      }
+      // Handle array sortBy - join as comma-separated string
+      if (query.sortBy && query.sortBy.length > 0) {
+        params.append('sortBy', query.sortBy.join(','));
+      }
       if (query.filterYear !== undefined) params.append('filterYear', String(query.filterYear));
       if (query.filterMonth !== undefined) params.append('filterMonth', String(query.filterMonth));
       if (query.itemName) params.append('itemName', query.itemName);

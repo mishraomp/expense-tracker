@@ -229,8 +229,8 @@ export class ExpensesService {
       endDate,
       filterYear,
       filterMonth,
-      sortOrder = 'desc',
-      sortBy = 'date',
+      sortOrder = ['desc'],
+      sortBy = ['date'],
       itemName,
       tagIds,
     } = query;
@@ -290,9 +290,25 @@ export class ExpensesService {
     }
 
     // Fetch expenses, total count and sum in parallel
-    // Map sortBy to valid fields
+    // Build orderBy array for multi-field sorting
     const validSortFields = ['date', 'amount', 'createdAt', 'updatedAt'];
-    const sortField = validSortFields.includes(sortBy) ? sortBy : 'date';
+    const orderBy: Array<Record<string, 'asc' | 'desc'>> = [];
+
+    // Ensure sortBy and sortOrder are arrays
+    const sortByArr = Array.isArray(sortBy) ? sortBy : [sortBy];
+    const sortOrderArr = Array.isArray(sortOrder) ? sortOrder : [sortOrder];
+
+    for (let i = 0; i < sortByArr.length; i++) {
+      const field = validSortFields.includes(sortByArr[i]) ? sortByArr[i] : 'date';
+      const order = sortOrderArr[i] || sortOrderArr[0] || 'desc';
+      orderBy.push({ [field]: order as 'asc' | 'desc' });
+    }
+
+    // Fallback to date desc if no valid sort fields
+    if (orderBy.length === 0) {
+      orderBy.push({ date: 'desc' });
+    }
+
     const [expenses, total, sumAgg] = await Promise.all([
       this.prisma.expense.findMany({
         where,
@@ -301,7 +317,7 @@ export class ExpensesService {
           subcategory: true,
           expenseTags: { include: { tag: true } },
         },
-        orderBy: { [sortField]: sortOrder },
+        orderBy,
         skip,
         take: pageSize,
       }),
