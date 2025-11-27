@@ -98,8 +98,10 @@ export const useCreateExpense = () => {
       return response.data;
     },
     onSuccess: () => {
-      // Invalidate all expense queries to refetch
-      queryClient.invalidateQueries({ queryKey: expenseKeys.all });
+      // Invalidate all expense queries to refetch (including lists)
+      queryClient.invalidateQueries({ queryKey: expenseKeys.all, refetchType: 'active' });
+      // Also invalidate reports since they depend on expense data
+      queryClient.invalidateQueries({ queryKey: ['reports'], refetchType: 'active' });
       toast.success('Expense created successfully');
     },
     onError: (error: any) => {
@@ -139,8 +141,10 @@ export const useUpdateExpense = () => {
       return { previousExpense };
     },
     onSuccess: () => {
-      // Invalidate all expense queries
-      queryClient.invalidateQueries({ queryKey: expenseKeys.all });
+      // Invalidate all expense queries to refetch (including lists)
+      queryClient.invalidateQueries({ queryKey: expenseKeys.all, refetchType: 'active' });
+      // Also invalidate reports since they depend on expense data
+      queryClient.invalidateQueries({ queryKey: ['reports'], refetchType: 'active' });
       toast.success('Expense updated successfully');
     },
     onError: (error: any, _variables, context) => {
@@ -163,8 +167,10 @@ export const useDeleteExpense = () => {
       await api.delete(`/expenses/${id}`);
     },
     onSuccess: () => {
-      // Invalidate all expense queries
-      queryClient.invalidateQueries({ queryKey: expenseKeys.all });
+      // Invalidate all expense queries to refetch (including lists)
+      queryClient.invalidateQueries({ queryKey: expenseKeys.all, refetchType: 'active' });
+      // Also invalidate reports since they depend on expense data
+      queryClient.invalidateQueries({ queryKey: ['reports'], refetchType: 'active' });
       toast.success('Expense deleted successfully');
     },
     onError: (error: any) => {
