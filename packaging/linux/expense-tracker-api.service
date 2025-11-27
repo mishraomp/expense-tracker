@@ -1,0 +1,30 @@
+[Unit]
+Description=Expense Tracker API (NestJS Backend)
+Documentation=https://github.com/mishraomp/expense-tracker
+After=network.target postgresql.service expense-tracker-keycloak.service
+Requires=postgresql.service
+Wants=expense-tracker-keycloak.service
+
+[Service]
+Type=simple
+User=expense-tracker
+Group=expense-tracker
+WorkingDirectory=/opt/expense-tracker/backend
+Environment=NODE_ENV=production
+Environment=PORT=3000
+EnvironmentFile=-/etc/expense-tracker/expense-tracker.conf
+ExecStart=/usr/bin/node dist/main.js
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/var/log/expense-tracker/api.log
+StandardError=append:/var/log/expense-tracker/api-error.log
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/log/expense-tracker
+
+[Install]
+WantedBy=multi-user.target

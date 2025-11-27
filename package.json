@@ -2,20 +2,28 @@
   "name": "expense-tracker-release",
   "version": "0.0.0",
   "private": true,
+  "description": "Expense Tracker - Personal Finance Management Application",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mishraomp/expense-tracker.git"
+  },
   "scripts": {
     "build:backend": "cd backend && npm ci && npm run build",
     "build:frontend": "cd frontend && npm ci && npm run build",
     "build": "npm run build:backend && npm run build:frontend",
-    "package:deb": "./scripts/package-deb.sh",
-    "package:msi": "powershell -ExecutionPolicy Bypass -File ./scripts/package-msi.ps1",
-    "release": "semantic-release"
+    "test:backend": "cd backend && npm test",
+    "test:frontend": "cd frontend && npm test",
+    "test": "npm run test:backend && npm run test:frontend",
+    "release": "semantic-release",
+    "release:dry": "semantic-release --dry-run"
   },
   "devDependencies": {
-    "semantic-release": "^21.0.0",
-    "@semantic-release/changelog": "^6.0.0",
-    "@semantic-release/git": "^11.0.0",
-    "@semantic-release/github": "^9.0.0",
-    "@semantic-release/commit-analyzer": "^9.0.0",
-    "@semantic-release/release-notes-generator": "^10.0.0"
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^11.1.0",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^9.2.6",
+    "@semantic-release/release-notes-generator": "^12.1.0",
+    "conventional-changelog-conventionalcommits": "^7.0.2",
+    "semantic-release": "^22.0.12"
   }
 }

@@ -1,0 +1,8 @@
+{
+    "frontendPid":  null,
+    "frontendStdErr":  null,
+    "backendStdOut":  "C:\\projects\\personal\\expense-tracker\\logs\\backend.stdout.log",
+    "frontendStdOut":  null,
+    "backendPid":  65608,
+    "backendStdErr":  "C:\\projects\\personal\\expense-tracker\\logs\\backend.stderr.log"
+}

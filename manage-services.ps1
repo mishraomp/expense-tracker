@@ -15,10 +15,21 @@ function Write-Log($msg) {
   Write-Host "[manage-services] $msg"
 }
 
+function IsServiceRunning($service) {
+  $cid = (& docker compose -f $composeFile ps -q $service 2>$null) -join ''
+  if (-not $cid) { return $false }
+  $state = (& docker inspect -f '{{.State.Status}}' $cid 2>$null) -join ''
+  return ($state -eq 'running')
+}
 
-function StartService($service) {
+function StartServiceIfNotRunning($service) {
+  if (IsServiceRunning $service) {
+    Write-Log "$service is already running, skipping start"
+    return $true
+  }
   Write-Log "Starting service: $service"
   & docker compose -f $composeFile up -d $service | Out-Null
+  return $?
 }
 
 function StopService($service) {
@@ -54,21 +65,100 @@ function WaitForHealthy($service, $port = $null, [int]$timeoutSeconds = 120) {
   return $false
 }
 
-function StartNodeFor($name, $prefixPath, $npmScript) {
-  Write-Log "Starting node app ($name) in: $prefixPath -- script: $npmScript"
-  $arg = "--prefix $prefixPath run $npmScript"
+function BuildApp($name, $prefixPath, [switch]$Production) {
+  Write-Log "Building $name..."
+  $script = if ($Production -and $name -eq 'backend') { 'build:prod' } else { 'build' }
+  $buildResult = & npm --prefix $prefixPath run $script 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    Write-Log "ERROR: Failed to build $name"
+    Write-Host $buildResult
+    return $false
+  }
+  Write-Log "$name built successfully"
+  return $true
+}
 
-  # Ensure logs dir exists
+function LoadEnvFile($envFilePath) {
+  # Load .env file and return hashtable of environment variables
+  $envVars = @{}
+  if (Test-Path $envFilePath) {
+    Get-Content $envFilePath | ForEach-Object {
+      $line = $_.Trim()
+      # Skip empty lines and comments
+      if ($line -and -not $line.StartsWith('#')) {
+        $parts = $line -split '=', 2
+        if ($parts.Count -eq 2) {
+          $key = $parts[0].Trim()
+          $value = $parts[1].Trim()
+          # Remove surrounding quotes if present
+          if (($value.StartsWith('"') -and $value.EndsWith('"')) -or 
+              ($value.StartsWith("'") -and $value.EndsWith("'"))) {
+            $value = $value.Substring(1, $value.Length - 2)
+          }
+          $envVars[$key] = $value
+        }
+      }
+    }
+    Write-Log "Loaded $(($envVars.Keys).Count) environment variables from $envFilePath"
+  } else {
+    Write-Log "Warning: .env file not found at $envFilePath"
+  }
+  return $envVars
+}
+
+function StartBackendProduction($envFilePath) {
+  Write-Log "Starting backend in PRODUCTION mode..."
+  
+  $backendPath = Join-Path $root 'backend'
   $logsDir = Join-Path $root 'logs'
   if (-not (Test-Path $logsDir)) { New-Item -ItemType Directory -Path $logsDir | Out-Null }
 
-  $stdout = Join-Path $logsDir "$name.stdout.log"
-  $stderr = Join-Path $logsDir "$name.stderr.log"
+  $stdout = Join-Path $logsDir 'backend.stdout.log'
+  $stderr = Join-Path $logsDir 'backend.stderr.log'
 
-  # Start the process with stdout/stderr redirected to files so we can tail logs
+  # Load environment variables from .env and set them in current process
+  $envVars = LoadEnvFile $envFilePath
+  
+  # Set NODE_ENV to production
+  $envVars['NODE_ENV'] = 'production'
+
+  # Set environment variables in current process (child will inherit)
+  foreach ($key in $envVars.Keys) {
+    [System.Environment]::SetEnvironmentVariable($key, $envVars[$key], [System.EnvironmentVariableTarget]::Process)
+  }
+
+  $mainJs = Join-Path $backendPath 'dist'
+  $mainJs = Join-Path $mainJs 'main.js'
+  
+  if (-not (Test-Path $mainJs)) {
+    Write-Log "ERROR: Backend dist/main.js not found. Run build first."
+    return $null
+  }
+
+  # Use Start-Process which handles background processes better in PowerShell 5.1
+  # Limit Node.js heap to 128MB for this simple app
+  $nodeArgs = "--max-old-space-size=128 $mainJs"
+  $proc = Start-Process -FilePath 'node' -ArgumentList $nodeArgs -WorkingDirectory $backendPath -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+
+  Write-Log "Backend (production) started with PID $($proc.Id)"
+  Write-Log "Backend logs -> $stdout (stdout) | $stderr (stderr)"
+
+  return @{ pid = $proc.Id; stdout = $stdout; stderr = $stderr }
+}
+
+function StartFrontendDev($prefixPath) {
+  Write-Log "Starting frontend dev server..."
+  $arg = "--prefix $prefixPath run dev"
+
+  $logsDir = Join-Path $root 'logs'
+  if (-not (Test-Path $logsDir)) { New-Item -ItemType Directory -Path $logsDir | Out-Null }
+
+  $stdout = Join-Path $logsDir 'frontend.stdout.log'
+  $stderr = Join-Path $logsDir 'frontend.stderr.log'
+
   $proc = Start-Process -FilePath 'npm' -ArgumentList $arg -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
 
-  Write-Log "$name logs -> $stdout (stdout) | $stderr (stderr)"
+  Write-Log "Frontend logs -> $stdout (stdout) | $stderr (stderr)"
 
   return @{ pid = $proc.Id; stdout = $stdout; stderr = $stderr }
 }
@@ -99,6 +189,16 @@ if ($Action -eq 'stop') {
   StopService postgres
 
   # Stop node processes (backend, frontend)
+  # First, kill any process listening on port 3000 (the actual server)
+  $port3000Line = netstat -aon | findstr "LISTENING" | findstr ":3000" | Select-Object -First 1
+  if ($port3000Line) {
+    $serverPid = ($port3000Line -split '\s+' | Select-Object -Last 1)
+    if ($serverPid -and $serverPid -ne '0') {
+      Write-Log "Killing server process on port 3000 (PID: $serverPid)"
+      KillPid ([int]$serverPid)
+    }
+  }
+
   if (Test-Path $pidFile) {
     $content = Get-Content $pidFile -Raw | ConvertFrom-Json
     if ($content.backendPid) { KillPid $content.backendPid }
@@ -122,25 +222,65 @@ if ($Action -eq 'stop') {
 
 } elseif ($Action -eq 'start') {
 
-  StartService postgres
-  sleep 10
-  StartService keycloak
-  sleep 10
-  StartService metabase
-  sleep 10
-  # Start backup
-  StartService pg-backup
+  # Start Docker services (skip if already running)
+  StartServiceIfNotRunning postgres
+  
+  StartServiceIfNotRunning keycloak
+  
+  StartServiceIfNotRunning metabase
+  StartServiceIfNotRunning pg-backup
 
-  # Now start Node processes: backend then frontend
-  $backendRun = StartNodeFor 'backend' './backend' 'start:dev'
+  # Build frontend first
+  $frontendPath = Join-Path $root 'frontend'
+  if (-not (BuildApp 'frontend' $frontendPath)) {
+    Write-Log "ERROR: Frontend build failed. Aborting."
+    exit 1
+  }
+
+  # Copy frontend build to backend/public for production serving
+  $frontendDist = Join-Path $frontendPath 'dist'
+  $backendPath = Join-Path $root 'backend'
+  $backendPublic = Join-Path $backendPath 'public'
+  
+  if (Test-Path $backendPublic) {
+    Remove-Item -Path $backendPublic -Recurse -Force
+  }
+  
+  Write-Log "Copying frontend build to backend/public..."
+  Copy-Item -Path $frontendDist -Destination $backendPublic -Recurse
+  Write-Log "Frontend assets copied to backend/public"
+
+  # Build backend with production optimizations (no source maps)
+  if (-not (BuildApp 'backend' $backendPath -Production)) {
+    Write-Log "ERROR: Backend build failed. Aborting."
+    exit 1
+  }
+
+  # Start backend in production mode with .env
+  $envFile = Join-Path $backendPath '.env'
+  $backendRun = StartBackendProduction $envFile
+  if (-not $backendRun) {
+    Write-Log "ERROR: Failed to start backend. Aborting."
+    exit 1
+  }
   $backendPid = $backendRun.pid
-  Start-Sleep -Seconds 2
-  $frontendRun = StartNodeFor 'frontend' './frontend' 'dev'
-  $frontendPid = $frontendRun.pid
 
-  # Save PIDs
-  $o = @{backendPid = $backendPid; backendStdOut = $backendRun.stdout; backendStdErr = $backendRun.stderr; frontendPid = $frontendPid; frontendStdOut = $frontendRun.stdout; frontendStdErr = $frontendRun.stderr} | ConvertTo-Json
+  # Save PIDs (no separate frontend since backend serves it in production)
+  $o = @{
+    backendPid = $backendPid
+    backendStdOut = $backendRun.stdout
+    backendStdErr = $backendRun.stderr
+    frontendPid = $null
+    frontendStdOut = $null
+    frontendStdErr = $null
+  } | ConvertTo-Json
   Set-Content -Path $pidFile -Value $o
 
-  Write-Log "Start sequence completed (backendPid=$backendPid, frontendPid=$frontendPid)"
+  Write-Log "=============================================="
+  Write-Log "Start sequence completed!"
+  Write-Log "Backend (production) running on http://localhost:3000"
+  Write-Log "Frontend served by backend at http://localhost:3000"
+  Write-Log "API available at http://localhost:3000/api"
+  Write-Log "Keycloak at http://localhost:8080"
+  Write-Log "=============================================="
 }

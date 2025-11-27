@@ -2,16 +2,73 @@ name: Release & Packaging
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
 
 permissions:
   contents: write
   packages: write
   actions: write
 
+env:
+  NODE_VERSION: "24"
+  POSTGRES_VERSION: "18.0"
+  FLYWAY_VERSION: "11.0.0"
+  KEYCLOAK_VERSION: "26.0.5"
+  NSSM_VERSION: "2.24"
+
 jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # STEP 1: Compute semantic version FIRST (dry-run)
+  # ═══════════════════════════════════════════════════════════════════════════
+  compute-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      should_release: ${{ steps.get_version.outputs.should_release }}
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install semantic-release
+        run: npm ci
+
+      - name: Compute next version (dry-run)
+        id: get_version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Run semantic-release in dry-run mode to get next version
+          OUTPUT=$(npx semantic-release --dry-run 2>&1) || true
+          echo "$OUTPUT"
+
+          # Extract version from output
+          VERSION=$(echo "$OUTPUT" | grep -oP 'The next release version is \K[0-9]+\.[0-9]+\.[0-9]+' || echo "")
+
+          if [ -z "$VERSION" ]; then
+            # No new version - use latest tag or fallback
+            VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "0.0.0")
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          else
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Version: $VERSION"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # STEP 2: Build and test application
+  # ═══════════════════════════════════════════════════════════════════════════
   build-and-test:
     runs-on: ubuntu-latest
+    needs: compute-version
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -19,45 +76,56 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Install backend dependencies
         working-directory: ./backend
-        run: |
-          npm ci
+        run: npm ci
 
       - name: Install frontend dependencies
         working-directory: ./frontend
-        run: |
-          npm ci
+        run: npm ci
 
       - name: Run backend tests
         working-directory: ./backend
-        run: |
-          npm test
+        run: npm test
 
       - name: Run frontend tests
         working-directory: ./frontend
-        run: |
-          npm test
+        run: npm test
 
       - name: Build backend
         working-directory: ./backend
-        run: |
-          npm run build
+        run: npm run build
 
       - name: Build frontend
         working-directory: ./frontend
-        run: |
-          npm run build
+        run: npm run build
 
       - name: Prepare release artifacts
         run: |
-          mkdir -p release
-          # Copy backend built files
-          cp -r backend/dist release/backend
-          # Copy frontend build files
-          cp -r frontend/dist release/frontend || cp -r frontend/dist/* release/frontend
+          VERSION="${{ needs.compute-version.outputs.version }}"
+          mkdir -p release/{backend,migrations,keycloak}
+
+          # Backend with node_modules (production only)
+          cp -r backend/dist release/backend/
+          cp backend/package*.json release/backend/
+          cd backend && npm ci --omit=dev && cd ..
+          cp -r backend/node_modules release/backend/
+
+          # Frontend static files - embed in backend's public folder
+          # In production, NestJS serves these via @nestjs/serve-static
+          mkdir -p release/backend/public
+          cp -r frontend/dist/* release/backend/public/
+
+          # Database migrations
+          cp -r backend/migrations/* release/migrations/
+
+          # Keycloak realm export
+          cp -r docker/keycloak/export/* release/keycloak/
+
+          # Version file
+          echo "$VERSION" > release/VERSION
 
       - name: Upload artifacts for packaging
         uses: actions/upload-artifact@v4
@@ -65,9 +133,13 @@ jobs:
           name: release-artifacts
           path: release
 
+  # ═══════════════════════════════════════════════════════════════════════════
+  # STEP 3a: Build DEB package for Ubuntu 24.04+
+  # ═══════════════════════════════════════════════════════════════════════════
   package-deb:
-    runs-on: ubuntu-latest
-    needs: build-and-test
+    runs-on: ubuntu-24.04
+    needs: [compute-version, build-and-test]
+    if: needs.compute-version.outputs.should_release == 'true'
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -78,32 +150,106 @@ jobs:
           name: release-artifacts
           path: release
 
-      - name: Install fpm
+      - name: Install packaging tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y ruby ruby-dev build-essential
+          sudo apt-get install -y ruby ruby-dev build-essential wget curl
+
+          # Install fpm
           sudo gem install --no-document fpm
 
-      - name: Create DEB package with fpm
+      - name: Download bundled dependencies
         run: |
-          mkdir -p pkg
-          VERSION=$(git describe --tags --dirty --always || echo "0.0.0")
-          # Ensure version is semver-like (clean tags) (This will generate tag-based names)
-          fpm -s dir -t deb -n expense-tracker -v "$VERSION" \
-            --prefix /opt/expense-tracker -C release/backend . \
-            --after-install packaging/linux/after-install.sh \
-            --deb-systemd packaging/linux/expense-tracker.service \
-            -p pkg
+          VERSION="${{ needs.compute-version.outputs.version }}"
+          mkdir -p bundle/{postgres,flyway,keycloak,nginx}
 
-      - name: Upload Debian artifact
+          # Download Flyway CLI (portable)
+          echo "📥 Downloading Flyway ${FLYWAY_VERSION}..."
+          wget -q "https://repo1.maven.org/maven2/org/flywaydb/flyway-commandline/${FLYWAY_VERSION}/flyway-commandline-${FLYWAY_VERSION}-linux-x64.tar.gz" \
+            -O flyway.tar.gz
+          tar -xzf flyway.tar.gz -C bundle/flyway --strip-components=1
+          rm flyway.tar.gz
+
+          # Download Keycloak (standalone)
+          echo "📥 Downloading Keycloak ${KEYCLOAK_VERSION}..."
+          wget -q "https://github.com/keycloak/keycloak/releases/download/${KEYCLOAK_VERSION}/keycloak-${KEYCLOAK_VERSION}.tar.gz" \
+            -O keycloak.tar.gz
+          tar -xzf keycloak.tar.gz -C bundle/keycloak --strip-components=1
+          rm keycloak.tar.gz
+
+          # Note: PostgreSQL is installed via apt dependency, not bundled
+
+      - name: Create DEB package
+        run: |
+          VERSION="${{ needs.compute-version.outputs.version }}"
+
+          # Create package staging directory
+          PKG_ROOT=$(mktemp -d)
+
+          # Application directory structure
+          mkdir -p "$PKG_ROOT/opt/expense-tracker"/{backend,migrations,flyway,keycloak,config,logs}
+          mkdir -p "$PKG_ROOT/etc/expense-tracker"
+          mkdir -p "$PKG_ROOT/var/log/expense-tracker"
+          mkdir -p "$PKG_ROOT/usr/lib/systemd/system"
+
+          # Copy application files (frontend is embedded in backend/public)
+          cp -r release/backend/* "$PKG_ROOT/opt/expense-tracker/backend/"
+          cp -r release/migrations/* "$PKG_ROOT/opt/expense-tracker/migrations/"
+          cp -r release/keycloak/* "$PKG_ROOT/opt/expense-tracker/keycloak/"
+
+          # Copy bundled Flyway
+          cp -r bundle/flyway/* "$PKG_ROOT/opt/expense-tracker/flyway/"
+
+          # Copy bundled Keycloak
+          cp -r bundle/keycloak/* "$PKG_ROOT/opt/expense-tracker/keycloak-server/"
+
+          # Copy systemd service files
+          cp packaging/linux/expense-tracker-api.service "$PKG_ROOT/usr/lib/systemd/system/"
+          cp packaging/linux/expense-tracker-keycloak.service "$PKG_ROOT/usr/lib/systemd/system/"
+
+          # Copy configuration templates
+          cp packaging/linux/config/*.conf "$PKG_ROOT/etc/expense-tracker/" 2>/dev/null || true
+
+          # Create package
+          mkdir -p pkg
+          fpm -s dir -t deb \
+            -n expense-tracker \
+            -v "$VERSION" \
+            --architecture amd64 \
+            --maintainer "Expense Tracker Team <support@expense-tracker.io>" \
+            --description "Expense Tracker - Personal Finance Management Application" \
+            --url "https://github.com/mishraomp/expense-tracker" \
+            --license "MIT" \
+            --vendor "Expense Tracker" \
+            --category "finance" \
+            --depends "postgresql-18 | postgresql-17 | postgresql-16"
+            --depends "nodejs (>= 24)"
+            --depends "nginx"
+            --depends "openjdk-25-jre-headless | openjdk-21-jre-headless"
+            --config-files /etc/expense-tracker/ \
+            --after-install packaging/linux/after-install.sh \
+            --before-remove packaging/linux/before-remove.sh \
+            --after-remove packaging/linux/after-remove.sh \
+            -C "$PKG_ROOT" \
+            -p "pkg/expense-tracker_${VERSION}_amd64.deb" \
+            .
+
+          # Cleanup
+          rm -rf "$PKG_ROOT"
+
+      - name: Upload DEB artifact
         uses: actions/upload-artifact@v4
         with:
           name: expense-tracker-deb
           path: pkg/*.deb
 
+  # ═══════════════════════════════════════════════════════════════════════════
+  # STEP 3b: Build MSI package for Windows x64
+  # ═══════════════════════════════════════════════════════════════════════════
   package-msi:
     runs-on: windows-latest
-    needs: build-and-test
+    needs: [compute-version, build-and-test]
+    if: needs.compute-version.outputs.should_release == 'true'
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -114,25 +260,127 @@ jobs:
           name: release-artifacts
           path: release
 
-      - name: Install WiX Toolset using choco
-        run: choco install wix -y
+      - name: Install WiX Toolset
+        run: choco install wixtoolset -y
 
-      - name: Prepare MSI packaging files
-        run: |
-          mkdir pkg
-          # Copy backend build into packaging dir
-          robocopy release\\backend pkg\\backend /MIR
-          robocopy release\\frontend pkg\\frontend /MIR
-
-      - name: Create MSI using WiX
+      - name: Download bundled dependencies
         shell: powershell
         run: |
-          $version = (git describe --tags --dirty --always) -replace '[-_]', '.'
-          # Use WiX candle & light to compile .wxs to MSI
-          $wix = "C:\Program Files (x86)\WiX Toolset v3.11\bin"
-          if (-not(Test-Path $wix)) { throw "WiX not installed" }
-          & "$wix\candle.exe" packaging/windows/ExpenseTracker.wxs -dVersion=$version -o pkg\ExpenseTracker.wixobj
-          & "$wix\light.exe" pkg\ExpenseTracker.wixobj -o pkg\expense-tracker-$version.msi
+          $Version = "${{ needs.compute-version.outputs.version }}"
+          $ErrorActionPreference = 'Stop'
+
+          New-Item -ItemType Directory -Force -Path bundle/postgres, bundle/flyway, bundle/keycloak, bundle/nssm, bundle/nodejs
+
+          # Download PostgreSQL (embedded zip)
+          Write-Host "📥 Downloading PostgreSQL ${env:POSTGRES_VERSION}..."
+          $pgUrl = "https://get.enterprisedb.com/postgresql/postgresql-${env:POSTGRES_VERSION}-1-windows-x64-binaries.zip"
+          Invoke-WebRequest -Uri $pgUrl -OutFile postgres.zip
+          Expand-Archive -Path postgres.zip -DestinationPath bundle/postgres-temp
+          Move-Item bundle/postgres-temp/pgsql/* bundle/postgres/
+          Remove-Item postgres.zip, bundle/postgres-temp -Recurse -Force
+
+          # Download Flyway CLI
+          Write-Host "📥 Downloading Flyway ${env:FLYWAY_VERSION}..."
+          $fwUrl = "https://repo1.maven.org/maven2/org/flywaydb/flyway-commandline/${env:FLYWAY_VERSION}/flyway-commandline-${env:FLYWAY_VERSION}-windows-x64.zip"
+          Invoke-WebRequest -Uri $fwUrl -OutFile flyway.zip
+          Expand-Archive -Path flyway.zip -DestinationPath bundle/flyway-temp
+          Move-Item bundle/flyway-temp/flyway-${env:FLYWAY_VERSION}/* bundle/flyway/
+          Remove-Item flyway.zip, bundle/flyway-temp -Recurse -Force
+
+          # Download Keycloak
+          Write-Host "📥 Downloading Keycloak ${env:KEYCLOAK_VERSION}..."
+          $kcUrl = "https://github.com/keycloak/keycloak/releases/download/${env:KEYCLOAK_VERSION}/keycloak-${env:KEYCLOAK_VERSION}.zip"
+          Invoke-WebRequest -Uri $kcUrl -OutFile keycloak.zip
+          Expand-Archive -Path keycloak.zip -DestinationPath bundle/keycloak-temp
+          Move-Item bundle/keycloak-temp/keycloak-${env:KEYCLOAK_VERSION}/* bundle/keycloak/
+          Remove-Item keycloak.zip, bundle/keycloak-temp -Recurse -Force
+
+          # Download NSSM (service manager)
+          Write-Host "📥 Downloading NSSM ${env:NSSM_VERSION}..."
+          $nssmUrl = "https://nssm.cc/release/nssm-${env:NSSM_VERSION}.zip"
+          Invoke-WebRequest -Uri $nssmUrl -OutFile nssm.zip
+          Expand-Archive -Path nssm.zip -DestinationPath bundle/nssm-temp
+          Copy-Item bundle/nssm-temp/nssm-${env:NSSM_VERSION}/win64/nssm.exe bundle/nssm/
+          Remove-Item nssm.zip, bundle/nssm-temp -Recurse -Force
+
+          # Download Node.js (portable)
+          Write-Host "📥 Downloading Node.js ${env:NODE_VERSION}..."
+          $nodeUrl = "https://nodejs.org/dist/v${env:NODE_VERSION}.0.0/node-v${env:NODE_VERSION}.0.0-win-x64.zip"
+          Invoke-WebRequest -Uri $nodeUrl -OutFile nodejs.zip
+          Expand-Archive -Path nodejs.zip -DestinationPath bundle/nodejs-temp
+          Move-Item bundle/nodejs-temp/node-v${env:NODE_VERSION}.0.0-win-x64/* bundle/nodejs/
+          Remove-Item nodejs.zip, bundle/nodejs-temp -Recurse -Force
+
+      - name: Prepare MSI staging directory
+        shell: powershell
+        run: |
+          $Version = "${{ needs.compute-version.outputs.version }}"
+
+          # Create staging directory
+          New-Item -ItemType Directory -Force -Path staging/ExpenseTracker
+
+          # Copy application (frontend is embedded in backend/public)
+          Copy-Item -Recurse release/backend staging/ExpenseTracker/
+          Copy-Item -Recurse release/migrations staging/ExpenseTracker/
+          Copy-Item -Recurse release/keycloak staging/ExpenseTracker/keycloak-config
+
+          # Copy bundled dependencies
+          Copy-Item -Recurse bundle/postgres staging/ExpenseTracker/
+          Copy-Item -Recurse bundle/flyway staging/ExpenseTracker/
+          Copy-Item -Recurse bundle/keycloak staging/ExpenseTracker/keycloak-server
+          Copy-Item -Recurse bundle/nssm staging/ExpenseTracker/
+          Copy-Item -Recurse bundle/nodejs staging/ExpenseTracker/
+
+          # Copy installation scripts
+          Copy-Item packaging/windows/*.ps1 staging/ExpenseTracker/
+          Copy-Item packaging/windows/*.cmd staging/ExpenseTracker/ -ErrorAction SilentlyContinue
+
+          # Write version
+          Set-Content -Path staging/ExpenseTracker/VERSION -Value $Version
+
+      - name: Generate WiX component definitions
+        shell: powershell
+        run: |
+          $Version = "${{ needs.compute-version.outputs.version }}"
+          $WixPath = "${env:WIX}bin"
+
+          # Heat harvests files into WiX fragments
+          & "$WixPath\heat.exe" dir staging/ExpenseTracker `
+            -cg AllComponents `
+            -dr INSTALLFOLDER `
+            -srd -gg -sfrag -sreg `
+            -var var.SourceDir `
+            -out staging/Components.wxs
+
+      - name: Build MSI
+        shell: powershell
+        run: |
+          $Version = "${{ needs.compute-version.outputs.version }}"
+          $WixPath = "${env:WIX}bin"
+
+          # Parse version for WiX (must be X.Y.Z.W format)
+          $VersionParts = $Version -split '\.'
+          while ($VersionParts.Count -lt 4) { $VersionParts += "0" }
+          $WixVersion = $VersionParts[0..3] -join '.'
+
+          New-Item -ItemType Directory -Force -Path pkg
+
+          # Compile WiX sources
+          & "$WixPath\candle.exe" `
+            -dVersion="$WixVersion" `
+            -dSourceDir="staging\ExpenseTracker" `
+            packaging/windows/ExpenseTracker.wxs `
+            staging/Components.wxs `
+            -out staging/ `
+            -arch x64
+
+          # Link to MSI
+          & "$WixPath\light.exe" `
+            -ext WixUIExtension `
+            -ext WixUtilExtension `
+            staging/ExpenseTracker.wixobj `
+            staging/Components.wixobj `
+            -out "pkg/expense-tracker-${Version}-x64.msi"
 
       - name: Upload MSI artifact
         uses: actions/upload-artifact@v4
@@ -140,23 +388,47 @@ jobs:
           name: expense-tracker-msi
           path: pkg/*.msi
 
-  semantic-release:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # STEP 4: Create GitHub Release with artifacts
+  # ═══════════════════════════════════════════════════════════════════════════
+  release:
     runs-on: ubuntu-latest
-    needs: [build-and-test, package-deb, package-msi]
-    if: github.ref == 'refs/heads/main'
+    needs: [compute-version, package-deb, package-msi]
+    if: needs.compute-version.outputs.should_release == 'true'
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install semantic-release and plugins
+      - name: Download DEB artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: expense-tracker-deb
+          path: pkg
+
+      - name: Download MSI artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: expense-tracker-msi
+          path: pkg
+
+      - name: Install semantic-release
         run: npm ci
 
-      - name: Run semantic release
+      - name: Create Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release --no-ci
+        run: |
+          # List artifacts for debugging
+          echo "📦 Artifacts to release:"
+          ls -la pkg/
+
+          # Run semantic-release (will create tag, release, and upload assets)
+          npx semantic-release

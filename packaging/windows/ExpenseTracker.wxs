@@ -1,34 +1,187 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-  <Product Id="*" Name="Expense Tracker" Language="1033" Version="1.0.0.0" Manufacturer="ExpenseTracker" UpgradeCode="PUT-GUID-HERE">
-    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine"/>
+<!--
+  Expense Tracker - Windows Installer (MSI) Definition
+  
+  This WiX source file defines the complete MSI package including:
+  - PostgreSQL 18 (bundled)
+  - Flyway 11 migrations
+  - Keycloak 26 identity server
+  - Node.js 24 LTS runtime
+  - Backend API (NestJS)
+  - Frontend static files
+  - NSSM service manager
+  
+  All components are installed as Windows services using NSSM.
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
+     xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
+  
+  <Product Id="*" 
+           Name="Expense Tracker" 
+           Language="1033" 
+           Version="!(bind.FileVersion.VersionFile)" 
+           Manufacturer="Expense Tracker" 
+           UpgradeCode="A1B2C3D4-E5F6-7890-ABCD-EF1234567890">
+    
+    <Package InstallerVersion="500" 
+             Compressed="yes" 
+             InstallScope="perMachine"
+             Description="Expense Tracker - Personal Finance Management Application"
+             Comments="Includes PostgreSQL, Keycloak, and Node.js backend/frontend"
+             Platform="x64"/>
 
-    <MediaTemplate/>
+    <!-- Require 64-bit Windows -->
+    <Condition Message="This application requires a 64-bit version of Windows.">
+      <![CDATA[VersionNT64]]>
+    </Condition>
 
+    <!-- Upgrade handling -->
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." 
+                  AllowSameVersionUpgrades="yes"/>
+
+    <!-- Embed all files in the MSI -->
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high"/>
+
+    <!-- Properties -->
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER"/>
+    <Property Id="POSTGRES_PASSWORD" Value="expense_tracker_pg" Secure="yes"/>
+    <Property Id="KEYCLOAK_ADMIN_PASSWORD" Value="admin" Secure="yes"/>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- Directory Structure -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
     <Directory Id="TARGETDIR" Name="SourceDir">
-      <Directory Id="ProgramFilesFolder">
+      <Directory Id="ProgramFiles64Folder">
         <Directory Id="INSTALLFOLDER" Name="ExpenseTracker">
-          <Directory Id="BACKEND" Name="backend" />
-          <Directory Id="FRONTEND" Name="frontend" />
+          <Directory Id="DIR_Backend" Name="backend"/>
+          <Directory Id="DIR_Migrations" Name="migrations"/>
+          <Directory Id="DIR_Postgres" Name="postgres"/>
+          <Directory Id="DIR_Flyway" Name="flyway"/>
+          <Directory Id="DIR_Keycloak" Name="keycloak-server"/>
+          <Directory Id="DIR_KeycloakConfig" Name="keycloak-config"/>
+          <Directory Id="DIR_NodeJS" Name="nodejs"/>
+          <Directory Id="DIR_NSSM" Name="nssm"/>
+          <Directory Id="DIR_Data" Name="data">
+            <Directory Id="DIR_PgData" Name="pgdata"/>
+            <Directory Id="DIR_Logs" Name="logs"/>
+          </Directory>
+          <Directory Id="DIR_Config" Name="config"/>
         </Directory>
       </Directory>
     </Directory>
 
-    <Feature Id="DefaultFeature" Level="1">
-      <ComponentGroupRef Id="ProductComponents"/>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- Core Components (scripts and version file) -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="CoreScripts" Guid="*" Win64="yes">
+        <File Id="VersionFile" Source="$(var.SourceDir)\VERSION" KeyPath="yes"/>
+        <File Id="InstallScript" Source="$(var.SourceDir)\Install-Services.ps1"/>
+        <File Id="UninstallScript" Source="$(var.SourceDir)\Uninstall-Services.ps1"/>
+        <File Id="ConfigScript" Source="$(var.SourceDir)\Configure-Environment.ps1"/>
+        <File Id="StartScript" Source="$(var.SourceDir)\Start-ExpenseTracker.cmd"/>
+        <File Id="StopScript" Source="$(var.SourceDir)\Stop-ExpenseTracker.cmd"/>
+      </Component>
+    </DirectoryRef>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- Configuration Files -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <DirectoryRef Id="DIR_Config">
+      <Component Id="ConfigFiles" Guid="*" Win64="yes">
+        <File Id="AppConfig" Source="$(var.SourceDir)\config\expense-tracker.env" KeyPath="yes"/>
+        <File Id="KeycloakConfig" Source="$(var.SourceDir)\config\keycloak.env"/>
+      </Component>
+    </DirectoryRef>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- Feature Definition -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <Feature Id="MainFeature" 
+             Title="Expense Tracker" 
+             Description="Complete Expense Tracker application with all dependencies"
+             Level="1"
+             ConfigurableDirectory="INSTALLFOLDER"
+             AllowAdvertise="no"
+             Absent="disallow">
+      
+      <!-- Core scripts and configuration -->
+      <ComponentRef Id="CoreScripts"/>
+      <ComponentRef Id="ConfigFiles"/>
+      
+      <!-- All harvested components from heat.exe -->
+      <ComponentGroupRef Id="AllComponents"/>
     </Feature>
 
-    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
-      <Component Id="InstallPS" Guid="*">
-        <File Source="packaging/windows/install-service.ps1" KeyPath="yes" />
-      </Component>
-    </ComponentGroup>
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- Custom Actions -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    
+    <!-- Initialize PostgreSQL database -->
+    <CustomAction Id="InitPostgres"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="[SystemFolder]cmd.exe /c &quot;cd /d [INSTALLFOLDER] &amp;&amp; powershell.exe -ExecutionPolicy Bypass -File Configure-Environment.ps1 -Action InitDB&quot;"
+                  Execute="deferred"
+                  Return="check"
+                  Impersonate="no"/>
 
-    <CustomAction Id="InstallServicePS" FileKey="InstallPS" Execute="deferred" Impersonate="no" ExeCommand="-ExecutionPolicy Bypass -File [INSTALLFOLDER]\install-service.ps1"/>
+    <!-- Install Windows services -->
+    <CustomAction Id="InstallServices"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="[SystemFolder]cmd.exe /c &quot;cd /d [INSTALLFOLDER] &amp;&amp; powershell.exe -ExecutionPolicy Bypass -File Install-Services.ps1&quot;"
+                  Execute="deferred"
+                  Return="check"
+                  Impersonate="no"/>
 
+    <!-- Start services -->
+    <CustomAction Id="StartServices"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="[INSTALLFOLDER]Start-ExpenseTracker.cmd"
+                  Execute="deferred"
+                  Return="ignore"
+                  Impersonate="no"/>
+
+    <!-- Stop services before uninstall -->
+    <CustomAction Id="StopServices"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="[INSTALLFOLDER]Stop-ExpenseTracker.cmd"
+                  Execute="deferred"
+                  Return="ignore"
+                  Impersonate="no"/>
+
+    <!-- Remove Windows services -->
+    <CustomAction Id="UninstallServices"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="[SystemFolder]cmd.exe /c &quot;cd /d [INSTALLFOLDER] &amp;&amp; powershell.exe -ExecutionPolicy Bypass -File Uninstall-Services.ps1&quot;"
+                  Execute="deferred"
+                  Return="ignore"
+                  Impersonate="no"/>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- Install Sequence -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
     <InstallExecuteSequence>
-      <Custom Action="InstallServicePS" After="InstallFiles">NOT REMOVE</Custom>
+      <!-- On install: init DB, install services, start services -->
+      <Custom Action="InitPostgres" After="InstallFiles">NOT Installed AND NOT REMOVE</Custom>
+      <Custom Action="InstallServices" After="InitPostgres">NOT Installed AND NOT REMOVE</Custom>
+      <Custom Action="StartServices" After="InstallServices">NOT Installed AND NOT REMOVE</Custom>
+      
+      <!-- On uninstall: stop services, remove services -->
+      <Custom Action="StopServices" Before="RemoveFiles">REMOVE="ALL"</Custom>
+      <Custom Action="UninstallServices" After="StopServices">REMOVE="ALL"</Custom>
     </InstallExecuteSequence>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- UI Configuration -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <UIRef Id="WixUI_InstallDir"/>
+    
+    <!-- License -->
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.SourceDir)\LICENSE.rtf"/>
+    
+    <!-- Banner and dialog images (optional) -->
+    <!-- <WixVariable Id="WixUIBannerBmp" Value="banner.bmp"/> -->
+    <!-- <WixVariable Id="WixUIDialogBmp" Value="dialog.bmp"/> -->
 
   </Product>
 </Wix>

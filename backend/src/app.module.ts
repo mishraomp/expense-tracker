@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './modules/users/users.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
@@ -17,6 +19,28 @@ import { TagsModule } from './modules/tags/tags.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    // Serve frontend static files in production mode
+    ...(process.env.NODE_ENV === 'production'
+      ? [
+          ServeStaticModule.forRootAsync({
+            imports: [ConfigModule],
+            inject: [ConfigService],
+            useFactory: (configService: ConfigService) => [
+              {
+                rootPath: configService.get<string>(
+                  'FRONTEND_PATH',
+                  join(__dirname, '..', 'public'),
+                ),
+                exclude: ['/api/*', '/health', '/docs/*'],
+                serveStaticOptions: {
+                  index: ['index.html'],
+                  fallthrough: true,
+                },
+              },
+            ],
+          }),
+        ]
+      : []),
     PrismaModule,
     UsersModule,
     ExpensesModule,

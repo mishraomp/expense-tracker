@@ -1,10 +1,72 @@
 {
   "branches": ["main"],
+  "tagFormat": "v${version}",
   "plugins": [
-    "@semantic-release/commit-analyzer",
-    "@semantic-release/release-notes-generator",
-    "@semantic-release/changelog",
-    ["@semantic-release/github", { "assets": ["pkg/*.deb", "pkg/*.msi"] }],
-    ["@semantic-release/git", { "assets": ["package.json", "CHANGELOG.md"], "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}" }]
+    [
+      "@semantic-release/commit-analyzer",
+      {
+        "preset": "conventionalcommits",
+        "releaseRules": [
+          { "type": "feat", "release": "minor" },
+          { "type": "fix", "release": "patch" },
+          { "type": "perf", "release": "patch" },
+          { "type": "refactor", "release": "patch" },
+          { "type": "docs", "release": false },
+          { "type": "style", "release": false },
+          { "type": "chore", "release": false },
+          { "type": "test", "release": false },
+          { "breaking": true, "release": "major" }
+        ]
+      }
+    ],
+    [
+      "@semantic-release/release-notes-generator",
+      {
+        "preset": "conventionalcommits",
+        "presetConfig": {
+          "types": [
+            { "type": "feat", "section": "✨ Features" },
+            { "type": "fix", "section": "🐛 Bug Fixes" },
+            { "type": "perf", "section": "⚡ Performance" },
+            { "type": "refactor", "section": "♻️ Refactoring" },
+            { "type": "docs", "section": "📚 Documentation", "hidden": true },
+            { "type": "chore", "section": "🔧 Maintenance", "hidden": true }
+          ]
+        }
+      }
+    ],
+    [
+      "@semantic-release/changelog",
+      {
+        "changelogFile": "CHANGELOG.md",
+        "changelogTitle": "# Expense Tracker Changelog"
+      }
+    ],
+    [
+      "@semantic-release/github",
+      {
+        "assets": [
+          {
+            "path": "pkg/expense-tracker_*_amd64.deb",
+            "label": "Expense Tracker for Ubuntu/Debian (amd64)",
+            "name": "expense-tracker-${nextRelease.version}-amd64.deb"
+          },
+          {
+            "path": "pkg/expense-tracker-*-x64.msi",
+            "label": "Expense Tracker for Windows (x64)",
+            "name": "expense-tracker-${nextRelease.version}-x64.msi"
+          }
+        ],
+        "successComment": "🎉 This ${issue.pull_request ? 'PR is included' : 'issue has been resolved'} in version ${nextRelease.version}",
+        "failTitle": "Release failed for ${branch.name}"
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": ["package.json", "CHANGELOG.md"],
+        "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ]
   ]
 }
