@@ -1,4 +1,109 @@
-# React + TypeScript + Vite
+# Expense Tracker Frontend
+
+A React + TypeScript + Vite application for personal expense tracking.
+
+## Quick Start
+
+```bash
+npm install
+npm run dev
+```
+
+## Scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Start development server |
+| `npm run build` | Production build |
+| `npm run lint` | Lint and fix |
+| `npm run format` | Format with Prettier |
+| `npm test` | Run unit tests |
+| `npm run test:cov` | Unit tests with coverage |
+
+---
+
+## End-to-End (E2E) Testing
+
+E2E tests use [Playwright](https://playwright.dev/) and live in `frontend/e2e/`.
+
+### Prerequisites
+
+1. **Backend + Keycloak running** — from project root:
+   ```powershell
+   ./manage-services.ps1 start
+   cd backend && npm run start:dev
+   ```
+2. **Test user** — `e2etestuser` / `Password` (or set via env vars).
+
+### Install Browsers
+
+```bash
+npm run e2e:install
+```
+
+### Run Tests
+
+```bash
+# Headless (default)
+npm run e2e:run
+
+# Headed (see browser)
+npm run e2e:run:headed
+
+# CI mode (list reporter)
+npm run e2e:ci
+```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `E2E_BASE_URL` | `http://localhost:3000` | Backend URL |
+| `E2E_USERNAME` | `e2etestuser` | Keycloak test user |
+| `E2E_PASSWORD` | `Password` | Keycloak test password |
+
+Example (PowerShell):
+```powershell
+$env:E2E_USERNAME = "e2etestuser"
+$env:E2E_PASSWORD = "Password"
+npm run e2e:run
+```
+
+### Test Structure
+
+```
+frontend/e2e/
+├── playwright.config.ts    # Playwright configuration
+└── tests/
+    ├── helpers/
+    │   ├── auth.ts         # Login helper (Keycloak)
+    │   └── fixtures.ts     # Test data helpers (CRUD)
+    ├── login.spec.ts       # P1: Login & navigation
+    ├── crud.spec.ts        # P2: Expense CRUD
+    └── attachments.spec.ts # P3: Attachment upload/preview
+```
+
+### Artifacts
+
+On failure, Playwright captures:
+- **Screenshots** — `test-results/`
+- **Traces** — viewable with `npx playwright show-trace <trace.zip>`
+- **HTML Report** — `playwright-report/index.html`
+
+Open the HTML report:
+```bash
+npx playwright show-report playwright-report
+```
+
+### CI Integration
+
+E2E tests run automatically on PRs to `main`/`release` via `.github/workflows/e2e.yml`.
+
+Set repository secrets `E2E_USERNAME` and `E2E_PASSWORD` (or rely on defaults).
+
+---
+
+## React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
