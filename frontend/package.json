@@ -11,6 +11,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
+    "e2e:install": "npx playwright install --with-deps chromium",
+    "e2e:run": "npx playwright test --config=e2e/playwright.config.ts",
+    "e2e:run:headed": "npx playwright test --config=e2e/playwright.config.ts --headed",
+    "e2e:ci": "npx playwright test --config=e2e/playwright.config.ts --reporter=list",
     "format": "prettier --write \"src/**/*.{ts,tsx}\""
   },
   "dependencies": {
@@ -42,6 +46,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@playwright/test": "1.57.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
