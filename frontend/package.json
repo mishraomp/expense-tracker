@@ -11,6 +11,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
+    "e2e:install": "npx playwright install --with-deps",
+    "e2e:run": "npx playwright test",
+    "e2e:run:headed": "npx playwright test --headed",
+    "e2e:ci": "npx playwright test --reporter=list",
     "format": "prettier --write \"src/**/*.{ts,tsx}\""
   },
   "dependencies": {
@@ -69,7 +73,8 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.48.0",
     "vite": "npm:rolldown-vite@7.2.7",
-    "vitest": "^4.0.14"
+    "vitest": "^4.0.14",
+    "@playwright/test": "^1.44.0"
   },
   "overrides": {
     "vite": "npm:rolldown-vite@7.2.7"

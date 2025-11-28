@@ -140,3 +140,40 @@ As a user, I can add an attachment to an expense and confirm the upload & previe
 4. Add one P1 test (login + view expenses), one P2 test (CRUD), and one P3 test (attachments) as examples.
 5. Add GitHub Actions workflow to run E2E tests.
 
+
+### Clarifications
+
+#### Q1: Auth Strategy [NEEDS CLARIFICATION]
+**Context**: The project uses Keycloak; E2E tests need a robust authentication strategy.
+
+**Question**: Should tests use a Keycloak test realm in CI (Option A), implement a test-only auth bypass endpoint (Option B), or use programmatic token exchange to obtain a JWT (Option C)?
+
+| Option | Answer | Implications |
+|--------|--------|--------------|
+| A | Use Keycloak test realm in CI | High parity with production; requires Keycloak in CI and test user management. |
+| B | Implement a test-only auth bypass endpoint | Faster, more stable tests; slightly less parity with production. |
+| C | Use programmatic token exchange | Balanced approach — no UI login but still uses Keycloak to generate tokens. |
+
+#### Q2: Test Runner [NEEDS CLARIFICATION]
+**Context**: The project needs a runner for the E2E tests.
+
+**Question**: Should we use Playwright Test (recommended), Cypress, or another runner?
+
+| Option | Answer | Implications |
+|--------|--------|--------------|
+| A | Playwright Test | Powerful built-in runner, cross-browser, traces and CI-friendly; recommended for Vite + React. |
+| B | Cypress | Mature runner with a good DX, but cross-browser support has tradeoffs. |
+| C | Other | Provide name | We'll adapt tests accordingly. |
+
+#### Q3: Browser Coverage [NEEDS CLARIFICATION]
+**Context**: CI test runtime increases with more browsers.
+
+**Question**: Which browsers should CI run E2E tests on — Chromium only, Chromium+Firefox, or Chromium+Firefox+WebKit?
+
+| Option | Answer | Implications |
+|--------|--------|--------------|
+| A | Chromium only | Faster CI runs, catches the majority of issues. |
+| B | Chromium + Firefox | Broader coverage with moderate runtime increase. |
+| C | Chromium + Firefox + WebKit | Full coverage, longer CI runtime.
+
+
