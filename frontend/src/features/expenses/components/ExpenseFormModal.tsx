@@ -20,7 +20,7 @@ export default function ExpenseFormModal({
   return createPortal(
     <>
       <div className="modal show d-block z-modal" role="dialog" aria-modal="true">
-        <div className="modal-dialog modal-lg" role="document">
+        <div className="modal-dialog modal-lg modal-dialog-scrollable-viewport" role="document">
           <div className="modal-content">
             <div className="modal-header">
               <h5 className="modal-title">{expense ? 'Edit Expense' : 'Add New Expense'}</h5>

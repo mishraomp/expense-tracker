@@ -151,6 +151,44 @@ canvas {
   z-index: 1050;
 }
 
+// Responsive modal that stays within viewport height
+.modal-dialog-scrollable-viewport {
+  display: flex;
+  max-height: calc(100vh - 1rem);
+  margin: 0.5rem auto;
+
+  .modal-content {
+    max-height: calc(100vh - 1rem);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .modal-header {
+    flex-shrink: 0;
+  }
+
+  .modal-body {
+    overflow-y: auto;
+    flex: 1 1 auto;
+  }
+
+  .modal-footer {
+    flex-shrink: 0;
+  }
+}
+
+// Larger screens - add more margin
+@media (min-width: 576px) {
+  .modal-dialog-scrollable-viewport {
+    max-height: calc(100vh - 3.5rem);
+    margin: 1.75rem auto;
+
+    .modal-content {
+      max-height: calc(100vh - 3.5rem);
+    }
+  }
+}
+
 // Progress bar container
 .progress-track {
   width: 100%;

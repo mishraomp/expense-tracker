@@ -10,6 +10,7 @@ export const useIncomes = (query?: IncomeListQuery) => {
   return useQuery({
     queryKey: ['incomes', query],
     queryFn: () => incomeApi.getIncomes(query),
+    staleTime: 5 * 60 * 1000, // 5 minutes - consistent with other query hooks
   });
 };
 

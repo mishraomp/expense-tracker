@@ -25,7 +25,7 @@ export default function ExpenseItemsManager({
   defaultSubcategoryId,
 }: ExpenseItemsManagerProps) {
   const [showAddForm, setShowAddForm] = useState(false);
-  const { data: itemsData, isLoading, refetch } = useExpenseItems(expenseId);
+  const { data: itemsData, isLoading } = useExpenseItems(expenseId);
   const createItem = useCreateExpenseItem();
 
   const items = itemsData?.data || [];
@@ -33,7 +33,8 @@ export default function ExpenseItemsManager({
 
   const handleAddItem = async (item: CreateExpenseItemInput) => {
     await createItem.mutateAsync({ expenseId, data: item });
-    refetch();
+    // Note: No need to call refetch() - TanStack Query automatically refetches
+    // via onSuccess invalidation in useCreateExpenseItem
   };
 
   if (isLoading) {
@@ -47,7 +48,7 @@ export default function ExpenseItemsManager({
   }
 
   return (
-    <div className="mt-3 pt-3 border-top">
+    <div>
       <div className="d-flex justify-content-between align-items-center mb-2">
         <h6 className="mb-0">
           Line Items{' '}
@@ -81,7 +82,7 @@ export default function ExpenseItemsManager({
                   categories={categories}
                   expenseAmount={expenseAmount}
                   currentItemsTotalExcludingThis={totalAmount - item.amount}
-                  onUpdated={() => refetch()}
+                  // No onUpdated needed - TanStack Query auto-refetches via onSuccess invalidation
                 />
               ))}
             </tbody>

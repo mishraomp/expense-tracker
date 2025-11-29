@@ -12,30 +12,35 @@ import type {
   SubcategoryLineItemsQuery,
 } from '../types/reports.types';
 
-export const useSpendingOverTime = (query: SpendingOverTimeQuery) => {
+export const useSpendingOverTime = (query: SpendingOverTimeQuery & { enabled?: boolean }) => {
+  const { enabled = true, ...apiQuery } = query;
   return useQuery({
-    queryKey: ['reports', 'spending-over-time', query],
-    queryFn: () => reportsApi.getSpendingOverTime(query),
+    queryKey: ['reports', 'spending-over-time', apiQuery],
+    queryFn: () => reportsApi.getSpendingOverTime(apiQuery),
     staleTime: 5 * 60 * 1000, // 5 minutes
-    enabled: !!query.startDate && !!query.endDate && !!query.interval,
+    enabled: enabled && !!apiQuery.startDate && !!apiQuery.endDate && !!apiQuery.interval,
   });
 };
 
-export const useSpendingByCategory = (query: SpendingByCategoryQuery) => {
+export const useSpendingByCategory = (query: SpendingByCategoryQuery & { enabled?: boolean }) => {
+  const { enabled = true, ...apiQuery } = query;
   return useQuery({
-    queryKey: ['reports', 'spending-by-category', query],
-    queryFn: () => reportsApi.getSpendingByCategory(query),
+    queryKey: ['reports', 'spending-by-category', apiQuery],
+    queryFn: () => reportsApi.getSpendingByCategory(apiQuery),
     staleTime: 5 * 60 * 1000,
-    enabled: !!query.startDate && !!query.endDate,
+    enabled: enabled && !!apiQuery.startDate && !!apiQuery.endDate,
   });
 };
 
-export const useSpendingBySubcategory = (query: SpendingBySubcategoryQuery) => {
+export const useSpendingBySubcategory = (
+  query: SpendingBySubcategoryQuery & { enabled?: boolean },
+) => {
+  const { enabled = true, ...apiQuery } = query;
   return useQuery({
-    queryKey: ['reports', 'spending-by-subcategory', query],
-    queryFn: () => reportsApi.getSpendingBySubcategory(query),
+    queryKey: ['reports', 'spending-by-subcategory', apiQuery],
+    queryFn: () => reportsApi.getSpendingBySubcategory(apiQuery),
     staleTime: 5 * 60 * 1000,
-    enabled: !!query.startDate && !!query.endDate,
+    enabled: enabled && !!apiQuery.startDate && !!apiQuery.endDate,
   });
 };
 
@@ -48,19 +53,23 @@ export const useBudgetVsActual = (query: BudgetVsActualQuery) => {
   });
 };
 
-export const useCategoryBudgetReport = (query: BudgetReportQuery) => {
+export const useCategoryBudgetReport = (query: BudgetReportQuery & { enabled?: boolean }) => {
+  const { enabled = true, ...apiQuery } = query;
   return useQuery({
-    queryKey: ['reports', 'budget-report', 'categories', query],
-    queryFn: () => reportsApi.getCategoryBudgetReport(query),
+    queryKey: ['reports', 'budget-report', 'categories', apiQuery],
+    queryFn: () => reportsApi.getCategoryBudgetReport(apiQuery),
     staleTime: 5 * 60 * 1000,
+    enabled,
   });
 };
 
-export const useSubcategoryBudgetReport = (query: BudgetReportQuery) => {
+export const useSubcategoryBudgetReport = (query: BudgetReportQuery & { enabled?: boolean }) => {
+  const { enabled = true, ...apiQuery } = query;
   return useQuery({
-    queryKey: ['reports', 'budget-report', 'subcategories', query],
-    queryFn: () => reportsApi.getSubcategoryBudgetReport(query),
+    queryKey: ['reports', 'budget-report', 'subcategories', apiQuery],
+    queryFn: () => reportsApi.getSubcategoryBudgetReport(apiQuery),
     staleTime: 5 * 60 * 1000,
+    enabled,
   });
 };
 

@@ -31,6 +31,17 @@ export default function ExpensesTable({
   onEdit,
   onFilterChange,
 }: ExpensesTableProps) {
+  // Calculate default date range (current month start to today)
+  const getDefaultStartDate = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  };
+
+  const getDefaultEndDate = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  };
+
   // Default sort: Amount (highest first), then Date (newest first)
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'amount', desc: true },
@@ -226,16 +237,21 @@ export default function ExpensesTable({
 
   const handleClearFilters = useCallback(() => {
     setItemNameInput('');
-    onFilterChange?.({});
+    // Reset to default date range (current month) instead of empty
+    onFilterChange?.({
+      startDate: getDefaultStartDate(),
+      endDate: getDefaultEndDate(),
+    });
   }, [onFilterChange]);
 
+  // Check if filters differ from defaults (to show/hide clear button)
   const hasActiveFilters =
     filters.categoryId ||
     filters.subcategoryId ||
     filters.filterYear ||
     filters.filterMonth ||
-    filters.startDate ||
-    filters.endDate ||
+    (filters.startDate && filters.startDate !== getDefaultStartDate()) ||
+    (filters.endDate && filters.endDate !== getDefaultEndDate()) ||
     filters.itemName ||
     (filters.tagIds && filters.tagIds.length > 0);
 
@@ -443,17 +459,6 @@ export default function ExpensesTable({
       pagination,
     },
   });
-
-  // Calculate default date range (current month start to today)
-  const getDefaultStartDate = () => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-  };
-
-  const getDefaultEndDate = () => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  };
 
   // Get current filter values or defaults
   const startDateValue = filters.startDate ?? getDefaultStartDate();

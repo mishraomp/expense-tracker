@@ -56,11 +56,29 @@ export const ReportsPage = () => {
     setEndDate(toYYYYMMDD(today));
   };
 
-  const spendingQuery = useSpendingOverTime({ startDate, endDate, interval });
-  const categoryQuery = useSpendingByCategory({ startDate, endDate });
-  const subcategoryQuery = useSpendingBySubcategory({ startDate, endDate });
-  const catBudgetReport = useCategoryBudgetReport({});
-  const subcatBudgetReport = useSubcategoryBudgetReport({});
+  // Only fetch data for the currently selected report to avoid unnecessary API calls
+  const spendingQuery = useSpendingOverTime({
+    startDate,
+    endDate,
+    interval,
+    enabled: selectedReport === 'spending-over-time',
+  });
+  const categoryQuery = useSpendingByCategory({
+    startDate,
+    endDate,
+    enabled: selectedReport === 'spending-by-category',
+  });
+  const subcategoryQuery = useSpendingBySubcategory({
+    startDate,
+    endDate,
+    enabled: selectedReport === 'spending-by-subcategory',
+  });
+  const catBudgetReport = useCategoryBudgetReport({
+    enabled: selectedReport === 'category-budget',
+  });
+  const subcatBudgetReport = useSubcategoryBudgetReport({
+    enabled: selectedReport === 'subcategory-budget',
+  });
 
   const handleSubcategoryClick = useCallback((subcategory: SubcategoryBreakdownItem) => {
     setSelectedSubcategory(subcategory);

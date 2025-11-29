@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import type { CreateExpenseInput, Expense } from '../types/expense.types';
 import type { CreateExpenseItemInput } from '../types/expense-item.types';
 import { useCreateExpense, useUpdateExpense } from '../api/expenseApi';
+import { useExpenseItems } from '../api/expenseItemApi';
 import { useCategories } from '../api/categoryApi';
 import { useTags, useCreateTag } from '../api/tagApi';
 import SubcategorySelector from '../../subcategories/components/SubcategorySelector';
@@ -46,11 +47,17 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
   const createExpense = useCreateExpense();
   const updateExpense = useUpdateExpense();
   const { data: categories, isLoading: categoriesLoading } = useCategories();
+
+  // Fetch expense items in edit mode to determine if panel should be expanded
+  const { data: expenseItemsData } = useExpenseItems(expense?.id || '');
+  const hasLineItems = (expenseItemsData?.data?.length ?? 0) > 0;
   const { data: tags = [], isLoading: tagsLoading } = useTags();
   const createTag = useCreateTag();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
   const [showItems, setShowItems] = useState(false);
+  const [showLineItemsPanel, setShowLineItemsPanel] = useState(false); // For edit mode
+  const [showAttachmentsPanel, setShowAttachmentsPanel] = useState(false); // Always collapsed by default
   const [items, setItems] = useState<CreateExpenseItemInput[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [savedExpenseId, setSavedExpenseId] = useState<string | null>(null);
@@ -113,6 +120,8 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
       });
       setIsRecurring(false);
       setShowItems(false);
+      // Don't set showLineItemsPanel here - let the effect below handle it based on items
+      setShowAttachmentsPanel(false); // Keep attachments collapsed
       setItems([]);
       setSelectedTagIds(expense.tags?.map((t) => t.id) || []);
       setSavedExpenseId(expense.id); // Show upload section for existing expense
@@ -124,6 +133,8 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
       reset({ date: `${y}-${m}-${day}` });
       setIsRecurring(false);
       setShowItems(false);
+      setShowLineItemsPanel(false);
+      setShowAttachmentsPanel(false);
       setItems([]);
       setSelectedTagIds([]);
       setSavedExpenseId(null);
@@ -134,6 +145,15 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
   useEffect(() => {
     void fetchAttachments();
   }, [fetchAttachments]);
+
+  // Expand line items panel in edit mode only if there are items
+  useEffect(() => {
+    if (expense && hasLineItems) {
+      setShowLineItemsPanel(true);
+    } else if (expense && !hasLineItems) {
+      setShowLineItemsPanel(false);
+    }
+  }, [expense, hasLineItems]);
 
   const selectedCategoryId = watch('categoryId');
   const previousCategoryIdRef = useRef<string | undefined>(undefined);
@@ -366,13 +386,27 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
             {/* Line Items Section - Edit mode uses ExpenseItemsManager with API integration */}
             {isEditMode && expense && (
               <div className="col-12">
-                <ExpenseItemsManager
-                  expenseId={expense.id}
-                  expenseAmount={expense.amount}
-                  categories={categories || []}
-                  defaultCategoryId={selectedCategoryId}
-                  defaultSubcategoryId={watch('subcategoryId') || undefined}
-                />
+                <button
+                  type="button"
+                  className="btn btn-link p-0 text-decoration-none d-flex align-items-center"
+                  onClick={() => setShowLineItemsPanel(!showLineItemsPanel)}
+                  aria-expanded={showLineItemsPanel}
+                  aria-controls="lineItemsPanel"
+                >
+                  <i className={`bi bi-chevron-${showLineItemsPanel ? 'down' : 'right'} me-1`}></i>
+                  <span className="fw-semibold">Line Items</span>
+                </button>
+                {showLineItemsPanel && (
+                  <div id="lineItemsPanel" className="mt-2">
+                    <ExpenseItemsManager
+                      expenseId={expense.id}
+                      expenseAmount={expense.amount}
+                      categories={categories || []}
+                      defaultCategoryId={selectedCategoryId}
+                      defaultSubcategoryId={watch('subcategoryId') || undefined}
+                    />
+                  </div>
+                )}
               </div>
             )}
 
@@ -478,98 +512,117 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
           </div>
         </form>
 
+        {/* Attachments Section - Collapsible, always collapsed by default */}
         <div className="mt-3 pt-3 border-top">
-          <h6 className="mb-2">Attachments</h6>
-          <div className="mb-2" aria-live="polite">
-            {driveConnected ? (
-              <div className="d-flex align-items-center gap-2">
-                <span className="badge bg-success" title="Google Drive is connected">
-                  Drive Connected
-                </span>
-                <button
-                  type="button"
-                  className="btn btn-outline-danger btn-sm"
-                  onClick={() => revokeDrive()}
-                  disabled={driveConnecting}
-                >
-                  Disconnect
-                </button>
-              </div>
-            ) : (
-              <div className="d-flex align-items-center gap-2">
-                <span className="badge bg-secondary" title="Google Drive not connected">
-                  Drive Not Connected
-                </span>
-                <button
-                  type="button"
-                  className="btn btn-outline-primary btn-sm"
-                  onClick={() => beginDriveConnect()}
-                  disabled={driveConnecting}
-                >
-                  {driveConnecting ? 'Connecting...' : 'Connect Google Drive'}
-                </button>
-                {driveError && (
-                  <small className="text-danger" role="alert">
-                    {driveError}
-                  </small>
+          <button
+            type="button"
+            className="btn btn-link p-0 text-decoration-none d-flex align-items-center mb-2"
+            onClick={() => setShowAttachmentsPanel(!showAttachmentsPanel)}
+            aria-expanded={showAttachmentsPanel}
+            aria-controls="attachmentsPanel"
+          >
+            <i className={`bi bi-chevron-${showAttachmentsPanel ? 'down' : 'right'} me-1`}></i>
+            <span className="fw-semibold">Attachments</span>
+            {attachments.length > 0 && (
+              <span className="badge bg-secondary ms-2">{attachments.length}</span>
+            )}
+          </button>
+
+          {showAttachmentsPanel && (
+            <div id="attachmentsPanel">
+              <div className="mb-2" aria-live="polite">
+                {driveConnected ? (
+                  <div className="d-flex align-items-center gap-2">
+                    <span className="badge bg-success" title="Google Drive is connected">
+                      Drive Connected
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-outline-danger btn-sm"
+                      onClick={() => revokeDrive()}
+                      disabled={driveConnecting}
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                ) : (
+                  <div className="d-flex align-items-center gap-2">
+                    <span className="badge bg-secondary" title="Google Drive not connected">
+                      Drive Not Connected
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-outline-primary btn-sm"
+                      onClick={() => beginDriveConnect()}
+                      disabled={driveConnecting}
+                    >
+                      {driveConnecting ? 'Connecting...' : 'Connect Google Drive'}
+                    </button>
+                    {driveError && (
+                      <small className="text-danger" role="alert">
+                        {driveError}
+                      </small>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
-          {!savedExpenseId && (
-            <div className="alert alert-info py-2 mb-2" role="alert">
-              <small>Save the expense first to enable attachments.</small>
-            </div>
-          )}
-          <UploadWidget
-            recordType="expense"
-            recordId={savedExpenseId || undefined}
-            getOrCreateRecordId={async () => {
-              // Attempt to create the expense if not yet saved using current form values
-              const values = getValues();
-              if (!values.amount || !values.date || !values.categoryId) {
-                throw new Error(
-                  'Fill required fields (amount, date, category) before adding attachments',
-                );
-              }
-              if (!savedExpenseId) {
-                const submitData = {
-                  ...values,
-                  recurring: isRecurring,
-                  recurrenceFrequency: isRecurring ? values.recurrenceFrequency : undefined,
-                  numberOfRecurrences: isRecurring ? values.numberOfRecurrences : undefined,
-                } as CreateExpenseInput;
-                const result = await createExpense.mutateAsync(submitData);
-                setSavedExpenseId(result.id);
-                // Newly created -> fetch attachments (will be empty but sets baseline)
-                void fetchAttachments();
-                return result.id;
-              }
-              return savedExpenseId;
-            }}
-            onUploadComplete={() => {
-              // Refresh list after successful uploads
-              void fetchAttachments();
-            }}
-          />
-          {savedExpenseId && (
-            <div className="mt-3">
-              {attachmentsLoading && (
-                <div role="status" className="small text-muted">
-                  <span className="spinner-border spinner-border-sm me-1" /> Loading attachments...
+              {!savedExpenseId && (
+                <div className="alert alert-info py-2 mb-2" role="alert">
+                  <small>Save the expense first to enable attachments.</small>
                 </div>
               )}
-              {attachmentsError && (
-                <div className="alert alert-danger py-2" role="alert">
-                  {attachmentsError}
+              <UploadWidget
+                recordType="expense"
+                recordId={savedExpenseId || undefined}
+                getOrCreateRecordId={async () => {
+                  // Attempt to create the expense if not yet saved using current form values
+                  const values = getValues();
+                  if (!values.amount || !values.date || !values.categoryId) {
+                    throw new Error(
+                      'Fill required fields (amount, date, category) before adding attachments',
+                    );
+                  }
+                  if (!savedExpenseId) {
+                    const submitData = {
+                      ...values,
+                      recurring: isRecurring,
+                      recurrenceFrequency: isRecurring ? values.recurrenceFrequency : undefined,
+                      numberOfRecurrences: isRecurring ? values.numberOfRecurrences : undefined,
+                    } as CreateExpenseInput;
+                    const result = await createExpense.mutateAsync(submitData);
+                    setSavedExpenseId(result.id);
+                    // Newly created -> fetch attachments (will be empty but sets baseline)
+                    void fetchAttachments();
+                    return result.id;
+                  }
+                  return savedExpenseId;
+                }}
+                onUploadComplete={() => {
+                  // Refresh list after successful uploads
+                  void fetchAttachments();
+                }}
+              />
+              {savedExpenseId && (
+                <div className="mt-3">
+                  {attachmentsLoading && (
+                    <div role="status" className="small text-muted">
+                      <span className="spinner-border spinner-border-sm me-1" /> Loading
+                      attachments...
+                    </div>
+                  )}
+                  {attachmentsError && (
+                    <div className="alert alert-danger py-2" role="alert">
+                      {attachmentsError}
+                    </div>
+                  )}
+                  {!attachmentsLoading && !attachmentsError && (
+                    <AttachmentList
+                      attachments={attachments}
+                      onRefresh={() => fetchAttachments()}
+                      showActions
+                    />
+                  )}
                 </div>
-              )}
-              {!attachmentsLoading && !attachmentsError && (
-                <AttachmentList
-                  attachments={attachments}
-                  onRefresh={() => fetchAttachments()}
-                  showActions
-                />
               )}
             </div>
           )}

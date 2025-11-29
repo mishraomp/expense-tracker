@@ -33,6 +33,31 @@ describe('useDriveStore', () => {
     expect(useDriveStore.getState().error).toBe('err');
   });
 
+  it('checkStatus deduplicates concurrent calls', async () => {
+    // Make multiple concurrent calls
+    const [r1, r2, r3] = await Promise.all([
+      useDriveStore.getState().checkStatus(),
+      useDriveStore.getState().checkStatus(),
+      useDriveStore.getState().checkStatus(),
+    ]);
+    // All should return true
+    expect(r1).toBe(true);
+    expect(r2).toBe(true);
+    expect(r3).toBe(true);
+    // API should only be called once due to deduplication
+    expect(api.getDriveStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it('checkStatus uses cache within TTL', async () => {
+    // First call
+    await useDriveStore.getState().checkStatus();
+    expect(api.getDriveStatus).toHaveBeenCalledTimes(1);
+
+    // Second call should use cache (within 5s TTL)
+    await useDriveStore.getState().checkStatus();
+    expect(api.getDriveStatus).toHaveBeenCalledTimes(1); // Still 1, not 2
+  });
+
   it('beginConnect should redirect to authorize url', async () => {
     // Mock location change
     const origLoc = window.location;

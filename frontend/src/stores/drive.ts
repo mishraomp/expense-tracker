@@ -18,23 +18,46 @@ interface DriveState {
   revoke: () => Promise<boolean>;
 }
 
+// Deduplication: track in-flight request and cache TTL (5 seconds)
+let pendingStatusCheck: Promise<boolean> | null = null;
+const STATUS_CACHE_TTL_MS = 5000;
+
 export const useDriveStore = create<DriveState>()(
   devtools(
-    (set) => ({
+    (set, get) => ({
       connected: false,
       connecting: false,
       error: null,
       lastUpdated: null,
 
       checkStatus: async () => {
-        try {
-          const connected = await getDriveStatus();
-          set({ connected, lastUpdated: Date.now(), error: null });
-          return connected;
-        } catch (e) {
-          set({ error: (e as Error).message });
-          return false;
+        const { lastUpdated } = get();
+
+        // Return cached result if still fresh
+        if (lastUpdated && Date.now() - lastUpdated < STATUS_CACHE_TTL_MS) {
+          return get().connected;
         }
+
+        // Return existing in-flight request to avoid duplicates
+        if (pendingStatusCheck) {
+          return pendingStatusCheck;
+        }
+
+        // Create new request and track it
+        pendingStatusCheck = (async () => {
+          try {
+            const connected = await getDriveStatus();
+            set({ connected, lastUpdated: Date.now(), error: null });
+            return connected;
+          } catch (e) {
+            set({ error: (e as Error).message });
+            return false;
+          } finally {
+            pendingStatusCheck = null;
+          }
+        })();
+
+        return pendingStatusCheck;
       },
 
       beginConnect: async () => {
