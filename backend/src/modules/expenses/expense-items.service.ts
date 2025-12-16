@@ -230,23 +230,49 @@ export class ExpenseItemsService {
       }
       data.amount = new Decimal(updateDto.amount);
     }
-    if (updateDto.categoryId !== undefined) {
-      data.categoryId = updateDto.categoryId;
-    }
-    if (updateDto.subcategoryId !== undefined) {
-      data.subcategoryId = updateDto.subcategoryId;
-    }
     if (updateDto.notes !== undefined) {
       data.notes = updateDto.notes?.trim() || null;
     }
+    if (updateDto.categoryId !== undefined) {
+      // Validate category-subcategory pair if both will be present
+      const subcategoryId =
+        updateDto.subcategoryId !== undefined ? updateDto.subcategoryId : existing.subcategoryId;
+      if (updateDto.categoryId && subcategoryId) {
+        await this.validateSubcategoryCategory(updateDto.categoryId, subcategoryId);
+      }
+      if (updateDto.categoryId) {
+        data.category = { connect: { id: updateDto.categoryId } };
+      } else {
+        data.category = { disconnect: true };
+      }
+    }
+    if (updateDto.subcategoryId !== undefined) {
+      // Validate category-subcategory pair if both will be present
+      const categoryId =
+        updateDto.categoryId !== undefined ? updateDto.categoryId : existing.categoryId;
+      if (categoryId && updateDto.subcategoryId) {
+        await this.validateSubcategoryCategory(categoryId, updateDto.subcategoryId);
+      }
+      if (updateDto.subcategoryId) {
+        data.subcategory = { connect: { id: updateDto.subcategoryId } };
+      } else {
+        data.subcategory = { disconnect: true };
+      }
+    }
+    if (updateDto.gstApplicable !== undefined) {
+      data.gstApplicable = updateDto.gstApplicable;
+    }
+    if (updateDto.pstApplicable !== undefined) {
+      data.pstApplicable = updateDto.pstApplicable;
+    }
 
-    const item = await this.prisma.expenseItem.update({
+    const updatedItem = await this.prisma.expenseItem.update({
       where: { id: itemId },
       data,
       include: { category: true, subcategory: true },
     });
 
-    return ExpenseItemResponseDto.fromEntity(item);
+    return ExpenseItemResponseDto.fromEntity(updatedItem);
   }
 
   /**

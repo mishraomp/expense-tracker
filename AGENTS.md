@@ -215,11 +215,29 @@ cd frontend; npm test
 ---
 
 ## Database Migrations
-1. Always use FLYWAY first approach within docker
-1. generate `backend/prisma/schema.prisma` using db pull cli command.
-2. Generate Prisma client: `npx prisma generate`
-4. SQL migrations are stored in `backend/migrations/` with version prefix (e.g., `V2.6.0__performance_indices.sql`)
-5. Follow Flyway best practices while crafting flyway migration files.
+
+### ⚠️ CRITICAL RULE: NEVER hand-code `schema.prisma`
+
+**MANDATORY WORKFLOW** - Always follow these steps in order:
+
+1. **Create SQL migration** in `backend/migrations/V*.sql` following Flyway naming convention
+2. **Start Docker services**: `./manage-services.ps1 start` (starts PostgreSQL with Flyway)
+3. **Verify migration executed**: Check Docker logs - Flyway auto-runs migrations on container startup
+4. **Generate schema from database**: `cd backend && npx prisma db pull` (pulls schema directly from PostgreSQL)
+5. **Regenerate Prisma client**: `npx prisma generate`
+6. **NEVER** manually edit `backend/prisma/schema.prisma` - it's auto-generated from the database
+
+### Migration Details
+- SQL migrations stored in `backend/migrations/` with version prefix (e.g., `V3.0.0__add_gst_pst_taxes.sql`)
+- Follow Flyway best practices: 
+  - Each migration file handles one logical change
+  - Use descriptive names (snake_case after version number)
+  - Include both schema changes and initial data
+  - Add indexes and constraints in same migration as table creation
+  - Create CHECK constraints for data validation
+- Flyway executes migrations automatically when PostgreSQL container starts
+- `schema.prisma` is the **read-only output** of the database state (generated via `db pull`)
+- Prisma models should match database tables exactly - discrepancies indicate schema drift
 
 ---
 

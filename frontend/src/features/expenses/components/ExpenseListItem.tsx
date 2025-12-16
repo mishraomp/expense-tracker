@@ -2,6 +2,7 @@ import type { Expense } from '../types/expense.types';
 import { toYYYYMMDD } from '@/services/date';
 import { useState } from 'react';
 import ManageAttachmentsModal from '../../attachments/ManageAttachmentsModal';
+import TaxSummaryDisplay from './TaxSummaryDisplay';
 
 interface ExpenseListItemProps {
   expense: Expense;
@@ -25,7 +26,28 @@ export default function ExpenseListItem({ expense, onEdit, onDelete }: ExpenseLi
   return (
     <tr>
       <td>{formatDate(expense.date)}</td>
-      <td>{formatAmount(expense.amount)}</td>
+      <td>
+        <div className="d-flex flex-column gap-1">
+          <span>
+            {expense.gstApplicable || expense.pstApplicable ? (
+              <>
+                <span className="text-muted text-decoration-line-through small">
+                  {formatAmount(expense.amount)}
+                </span>
+                <br />
+                <TaxSummaryDisplay
+                  amount={expense.amount}
+                  gstApplicable={expense.gstApplicable}
+                  pstApplicable={expense.pstApplicable}
+                  compact
+                />
+              </>
+            ) : (
+              formatAmount(expense.amount)
+            )}
+          </span>
+        </div>
+      </td>
       <td>
         {expense.category && (
           <div className="d-flex flex-column">

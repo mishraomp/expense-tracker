@@ -99,6 +99,8 @@ export default function ExpenseItemForm({
       categoryId: data.categoryId || undefined,
       subcategoryId: data.subcategoryId || undefined,
       notes: data.notes?.trim() || undefined,
+      gstApplicable: data.gstApplicable,
+      pstApplicable: data.pstApplicable,
     });
     // Reset form but keep category/subcategory for convenience
     reset({
@@ -107,6 +109,8 @@ export default function ExpenseItemForm({
       categoryId: selectedCategoryId,
       subcategoryId: watch('subcategoryId'),
       notes: '',
+      gstApplicable: false,
+      pstApplicable: false,
     });
   });
 
@@ -121,7 +125,7 @@ export default function ExpenseItemForm({
   return (
     <div className="p-2 bg-light rounded border" onKeyDown={handleKeyDown}>
       <div className="row g-2 align-items-end">
-        <div className="col-md-3">
+        <div className="col-lg-2 col-md-3">
           <label htmlFor="itemName" className="form-label small mb-1">
             Item Name <span className="text-danger">*</span>
           </label>
@@ -139,7 +143,7 @@ export default function ExpenseItemForm({
           {errors.name && <div className="invalid-feedback">{errors.name.message}</div>}
         </div>
 
-        <div className="col-md-2">
+        <div className="col-lg-2 col-md-2">
           <label htmlFor="itemAmount" className="form-label small mb-1">
             Amount <span className="text-danger">*</span>
             {remainingBudget !== undefined && (
@@ -170,7 +174,7 @@ export default function ExpenseItemForm({
           </div>
         </div>
 
-        <div className="col-md-2">
+        <div className="col-lg-2 col-md-2">
           <label htmlFor="itemCategory" className="form-label small mb-1">
             Category
           </label>
@@ -189,7 +193,7 @@ export default function ExpenseItemForm({
           </select>
         </div>
 
-        <div className="col-md-2">
+        <div className="col-lg-2 col-md-2">
           <SubcategorySelector
             categoryId={selectedCategoryId || defaultCategoryId}
             value={watch('subcategoryId') || ''}
@@ -201,7 +205,7 @@ export default function ExpenseItemForm({
           />
         </div>
 
-        <div className="col-md-2">
+        <div className="col-lg-1 col-md-1">
           <label htmlFor="itemNotes" className="form-label small mb-1">
             Notes
           </label>
@@ -209,7 +213,7 @@ export default function ExpenseItemForm({
             type="text"
             className="form-control form-control-sm"
             id="itemNotes"
-            placeholder="Optional"
+            placeholder=""
             disabled={disabled}
             maxLength={500}
             {...register('notes', {
@@ -218,10 +222,41 @@ export default function ExpenseItemForm({
           />
         </div>
 
-        <div className="col-md-1">
+        <div className="col-lg-2 col-md-2">
+          <label className="form-label small mb-1 text-center d-block">Tax</label>
+          <div className="d-flex justify-content-center gap-2">
+            <div className="form-check mb-0" title="GST 5%">
+              <input
+                className="form-check-input"
+                type="checkbox"
+                id="itemGstApplicable"
+                disabled={disabled}
+                {...register('gstApplicable')}
+              />
+              <label className="form-check-label small" htmlFor="itemGstApplicable">
+                GST
+              </label>
+            </div>
+            <div className="form-check mb-0" title="PST 7%">
+              <input
+                className="form-check-input"
+                type="checkbox"
+                id="itemPstApplicable"
+                disabled={disabled}
+                {...register('pstApplicable')}
+              />
+              <label className="form-check-label small" htmlFor="itemPstApplicable">
+                PST
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div className="col-lg-1 col-md-auto">
+          <label className="form-label small mb-1 d-none d-lg-block">&nbsp;</label>
           <button
             type="button"
-            className="btn btn-primary btn-sm w-100"
+            className="btn btn-primary btn-sm w-50"
             disabled={disabled || wouldExceedBudget || remainingBudget === 0}
             title={
               wouldExceedBudget

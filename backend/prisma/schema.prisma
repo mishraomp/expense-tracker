@@ -23,6 +23,7 @@ model User {
   importSessions       ImportSession[]
   incomes              Income[]
   tags                 Tag[]
+  tax_defaults         tax_defaults[]
   defaultCategory      Category?             @relation("UserDefaultCategory", fields: [defaultCategoryId], references: [id], onUpdate: NoAction, map: "fk_users_default_category")
 
   @@map("users")
@@ -86,6 +87,10 @@ model Expense {
   updatedAt       DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt       DateTime?            @map("deleted_at") @db.Timestamptz(6)
   subcategoryId   String?              @map("subcategory_id") @db.Uuid
+  gstApplicable   Boolean              @default(false) @map("gst_applicable")
+  pstApplicable   Boolean              @default(false) @map("pst_applicable")
+  gstAmount       Decimal              @default(0) @map("gst_amount") @db.Decimal(12, 2)
+  pstAmount       Decimal              @default(0) @map("pst_amount") @db.Decimal(12, 2)
   items           ExpenseItem[]
   expenseTags     ExpenseTag[]
   category        Category             @relation(fields: [categoryId], references: [id], onUpdate: NoAction)
@@ -103,6 +108,9 @@ model Expense {
   @@index([userId, date(sort: Desc)], map: "idx_expenses_user_date")
   @@index([userId], map: "idx_expenses_user_id")
   @@index([userId, subcategoryId], map: "idx_expenses_user_subcategory")
+  @@index([gstApplicable], map: "idx_expenses_gst_applicable")
+  @@index([pstApplicable], map: "idx_expenses_pst_applicable")
+  @@index([gstApplicable, pstApplicable], map: "idx_expenses_tax_composite")
   @@map("expenses")
 }
 
@@ -120,6 +128,10 @@ model ExpenseItem {
   createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt       DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  gstApplicable   Boolean          @default(false) @map("gst_applicable")
+  pstApplicable   Boolean          @default(false) @map("pst_applicable")
+  gstAmount       Decimal          @default(0) @map("gst_amount") @db.Decimal(12, 2)
+  pstAmount       Decimal          @default(0) @map("pst_amount") @db.Decimal(12, 2)
   expenseItemTags ExpenseItemTag[]
   category        Category?        @relation(fields: [categoryId], references: [id], onUpdate: NoAction)
   expense         Expense          @relation(fields: [expenseId], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -128,6 +140,9 @@ model ExpenseItem {
   @@index([expenseId], map: "idx_expense_items_expense_id")
   @@index([categoryId], map: "idx_expense_items_category_id")
   @@index([subcategoryId], map: "idx_expense_items_subcategory_id")
+  @@index([gstApplicable], map: "idx_expense_items_gst_applicable")
+  @@index([pstApplicable], map: "idx_expense_items_pst_applicable")
+  @@index([gstApplicable, pstApplicable, expenseId], map: "idx_expense_items_tax_composite")
   @@map("expense_items")
 }
 
@@ -303,6 +318,19 @@ model Tag {
   @@unique([userId, name], map: "uq_tags_user_name")
   @@index([userId], map: "idx_tags_user_id")
   @@map("tags")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tax_defaults {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  gst_rate   Decimal  @default(5.00) @db.Decimal(5, 2)
+  pst_rate   Decimal  @default(7.00) @db.Decimal(5, 2)
+  is_default Boolean  @default(true)
+  region     String?  @db.VarChar(10)
+  user_id    String?  @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamp(6)
+  updated_at DateTime @default(now()) @db.Timestamp(6)
+  users      User?    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 enum CategoryType {
