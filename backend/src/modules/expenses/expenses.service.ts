@@ -185,8 +185,8 @@ export class ExpensesService {
           categoryId: item.categoryId,
           subcategoryId: item.subcategoryId,
           notes: item.notes?.trim(),
-          gstApplicable: item.gstApplicable ?? false,
-          pstApplicable: item.pstApplicable ?? false,
+          gstApplicable: item.gstApplicable ?? createExpenseDto.gstApplicable ?? false,
+          pstApplicable: item.pstApplicable ?? createExpenseDto.pstApplicable ?? false,
           gstAmount: new Decimal(0), // Will be calculated below
           pstAmount: new Decimal(0), // Will be calculated below
         }));
@@ -471,10 +471,7 @@ export class ExpensesService {
       totalTaxAmount:
         (row.gst_amount ? new Decimal(row.gst_amount).toNumber() : 0) +
         (row.pst_amount ? new Decimal(row.pst_amount).toNumber() : 0),
-      totalWithTax:
-        new Decimal(row.amount).toNumber() +
-        ((row.gst_amount ? new Decimal(row.gst_amount).toNumber() : 0) +
-          (row.pst_amount ? new Decimal(row.pst_amount).toNumber() : 0)),
+      totalWithTax: new Decimal(row.amount).toNumber(),
       category: {
         id: row.category_id,
         name: row.category_name,
@@ -571,56 +568,136 @@ export class ExpensesService {
       data.pstApplicable = updateExpenseDto.pstApplicable;
     }
 
+    const shouldRecalculateTaxes =
+      updateExpenseDto.amount !== undefined ||
+      updateExpenseDto.gstApplicable !== undefined ||
+      updateExpenseDto.pstApplicable !== undefined;
+
     // Handle tag updates if provided
     if (updateExpenseDto.tagIds !== undefined) {
-      // Use transaction to update expense and replace tags atomically
-      const expense = await this.prisma.$transaction(async (tx) => {
-        // Update expense fields
-        await tx.expense.update({
-          where: { id },
-          data,
-        });
+      await this.prisma.$transaction(async (tx) => {
+        await tx.expense.update({ where: { id }, data });
 
-        // Delete existing tag associations
-        await tx.expenseTag.deleteMany({
-          where: { expenseId: id },
-        });
+        await tx.expenseTag.deleteMany({ where: { expenseId: id } });
 
-        // Create new tag associations
         if (updateExpenseDto.tagIds?.length) {
           await tx.expenseTag.createMany({
-            data: updateExpenseDto.tagIds.map((tagId) => ({
-              expenseId: id,
-              tagId,
-            })),
+            data: updateExpenseDto.tagIds.map((tagId) => ({ expenseId: id, tagId })),
           });
         }
-
-        // Refetch with relations
-        return tx.expense.findUnique({
-          where: { id },
-          include: {
-            category: true,
-            subcategory: true,
-            expenseTags: { include: { tag: true } },
-          },
-        });
       });
 
-      return ExpenseResponseDto.fromEntity(expense!);
+      if (shouldRecalculateTaxes) {
+        await this.recalculateAndPersistTaxes(userId, id, updateExpenseDto);
+      }
+
+      const refreshed = await this.prisma.expense.findUnique({
+        where: { id },
+        include: {
+          category: true,
+          subcategory: true,
+          items: {
+            where: { deletedAt: null },
+            include: { category: true, subcategory: true },
+            orderBy: { createdAt: 'asc' },
+          },
+          expenseTags: { include: { tag: true } },
+        },
+      });
+
+      return ExpenseResponseDto.fromEntity(refreshed!);
     }
 
-    const expense = await this.prisma.expense.update({
+    await this.prisma.expense.update({ where: { id }, data });
+
+    if (shouldRecalculateTaxes) {
+      await this.recalculateAndPersistTaxes(userId, id, updateExpenseDto);
+    }
+
+    const refreshed = await this.prisma.expense.findUnique({
       where: { id },
-      data,
       include: {
         category: true,
         subcategory: true,
+        items: {
+          where: { deletedAt: null },
+          include: { category: true, subcategory: true },
+          orderBy: { createdAt: 'asc' },
+        },
         expenseTags: { include: { tag: true } },
       },
     });
 
-    return ExpenseResponseDto.fromEntity(expense);
+    return ExpenseResponseDto.fromEntity(refreshed!);
+  }
+
+  private async recalculateAndPersistTaxes(
+    userId: string,
+    expenseId: string,
+    updateExpenseDto: UpdateExpenseDto,
+  ): Promise<void> {
+    const taxRates = await this.taxCalculationService.getTaxRatesForUser(userId);
+
+    const expense = await this.prisma.expense.findUnique({
+      where: { id: expenseId },
+      select: {
+        id: true,
+        amount: true,
+        gstApplicable: true,
+        pstApplicable: true,
+        items: {
+          where: { deletedAt: null },
+          select: {
+            id: true,
+            amount: true,
+            gstApplicable: true,
+            pstApplicable: true,
+          },
+        },
+      },
+    });
+
+    if (!expense) {
+      throw new NotFoundException(`Expense with ID ${expenseId} not found`);
+    }
+
+    const effectiveGstApplicable = updateExpenseDto.gstApplicable ?? expense.gstApplicable;
+    const effectivePstApplicable = updateExpenseDto.pstApplicable ?? expense.pstApplicable;
+
+    if (expense.items?.length) {
+      const itemsForTax = expense.items.map((item) => ({
+        id: item.id,
+        amount: item.amount,
+        gstApplicable: updateExpenseDto.gstApplicable ?? item.gstApplicable,
+        pstApplicable: updateExpenseDto.pstApplicable ?? item.pstApplicable,
+      }));
+
+      const expenseTaxSummary = this.taxCalculationService.calculateExpenseTaxes(
+        expense.id,
+        itemsForTax,
+        taxRates,
+      );
+
+      await this.taxCalculationService.applyTaxesToExpense(expense.id, expenseTaxSummary);
+      return;
+    }
+
+    const taxCalculation = this.taxCalculationService.calculateLineTaxes(
+      updateExpenseDto.amount ?? expense.amount.toNumber(),
+      effectiveGstApplicable,
+      effectivePstApplicable,
+      taxRates,
+    );
+
+    await this.prisma.expense.update({
+      where: { id: expense.id },
+      data: {
+        gstApplicable: taxCalculation.gstApplicable,
+        pstApplicable: taxCalculation.pstApplicable,
+        gstAmount: taxCalculation.gstAmount,
+        pstAmount: taxCalculation.pstAmount,
+      },
+    });
   }
 
   async remove(userId: string, id: string): Promise<void> {

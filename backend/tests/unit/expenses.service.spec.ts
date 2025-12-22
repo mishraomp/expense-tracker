@@ -5,6 +5,7 @@ import { Decimal } from '@prisma/client/runtime/client.js';
 describe('ExpensesService', () => {
   let mockPrisma: any;
   let mockAttachmentsService: any;
+  let mockTaxCalculationService: any;
   let svc: ExpensesService;
 
   beforeEach(() => {
@@ -15,6 +16,7 @@ describe('ExpensesService', () => {
         count: vi.fn(async () => 1),
         aggregate: vi.fn(async () => ({ _sum: { amount: new Decimal(100) } })),
         findFirst: vi.fn(async () => ({ id: 'exp-1', amount: new Decimal(100) })),
+        findUnique: vi.fn(async () => ({ id: 'exp-1', amount: new Decimal(100) })),
         update: vi.fn(async ({ where, data }: any) => ({ id: where.id, ...data })),
       },
       category: { findFirst: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(async () => []) },
@@ -31,7 +33,41 @@ describe('ExpensesService', () => {
       $queryRawUnsafe: vi.fn(),
     };
     mockAttachmentsService = { listAttachments: vi.fn(async () => []) };
-    svc = new ExpensesService(mockPrisma as any, mockAttachmentsService as any);
+
+    mockTaxCalculationService = {
+      getTaxRatesForUser: vi.fn(async () => ({
+        id: 'system-default',
+        gstRate: new Decimal('5.00'),
+        pstRate: new Decimal('7.00'),
+      })),
+      calculateLineTaxes: vi.fn(
+        (lineAmount: any, gstApplicable: boolean, pstApplicable: boolean) => {
+          const amt = new Decimal(lineAmount);
+          const gstAmount = gstApplicable
+            ? amt.times(5).div(100).toDecimalPlaces(2)
+            : new Decimal(0);
+          const pstAmount = pstApplicable
+            ? amt.times(7).div(100).toDecimalPlaces(2)
+            : new Decimal(0);
+          return {
+            gstApplicable,
+            pstApplicable,
+            gstAmount,
+            pstAmount,
+            totalTaxAmount: gstAmount.plus(pstAmount),
+            lineSubtotal: amt,
+          };
+        },
+      ),
+      calculateExpenseTaxes: vi.fn(),
+      applyTaxesToExpense: vi.fn(async () => undefined),
+    };
+
+    svc = new ExpensesService(
+      mockPrisma as any,
+      mockAttachmentsService as any,
+      mockTaxCalculationService as any,
+    );
   });
 
   it('create should throw on non-positive amount', async () => {
@@ -186,11 +222,37 @@ describe('ExpensesService', () => {
       category: null,
       subcategory: null,
     });
-    mockPrisma.expense.update.mockResolvedValueOnce({
+
+    // 1) recalculateAndPersistTaxes() reads expense (select)
+    mockPrisma.expense.findUnique.mockResolvedValueOnce({
+      id: 'exp-1',
+      amount: new Decimal(200),
+      gstApplicable: false,
+      pstApplicable: false,
+      items: [],
+    });
+
+    // 2) update() returns refreshed expense (include)
+    mockPrisma.expense.findUnique.mockResolvedValueOnce({
+      id: 'exp-1',
+      amount: new Decimal(200),
+      date: new Date('2025-01-01'),
+      gstApplicable: false,
+      pstApplicable: false,
+      gstAmount: new Decimal(0),
+      pstAmount: new Decimal(0),
+      category: null,
+      subcategory: null,
+      items: [],
+      expenseTags: [],
+    });
+
+    mockPrisma.expense.update.mockResolvedValue({
       id: 'exp-1',
       amount: new Decimal(200),
       date: new Date('2025-01-01'),
     });
+
     const res = await svc.update('user-1', 'exp-1', { amount: 200 } as any);
     expect(res).toBeDefined();
   });

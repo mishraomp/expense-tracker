@@ -2,7 +2,6 @@ import type { Expense } from '../types/expense.types';
 import { toYYYYMMDD } from '@/services/date';
 import { useState } from 'react';
 import ManageAttachmentsModal from '../../attachments/ManageAttachmentsModal';
-import TaxSummaryDisplay from './TaxSummaryDisplay';
 
 interface ExpenseListItemProps {
   expense: Expense;
@@ -23,6 +22,11 @@ export default function ExpenseListItem({ expense, onEdit, onDelete }: ExpenseLi
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
   };
 
+  const totalTaxAmount =
+    expense.totalTaxAmount ?? (expense.gstAmount ?? 0) + (expense.pstAmount ?? 0);
+  const totalWithTax = expense.amount;
+  const subtotal = Math.max(totalWithTax - totalTaxAmount, 0);
+
   return (
     <tr>
       <td>{formatDate(expense.date)}</td>
@@ -32,15 +36,17 @@ export default function ExpenseListItem({ expense, onEdit, onDelete }: ExpenseLi
             {expense.gstApplicable || expense.pstApplicable ? (
               <>
                 <span className="text-muted text-decoration-line-through small">
-                  {formatAmount(expense.amount)}
+                  {formatAmount(subtotal)}
                 </span>
                 <br />
-                <TaxSummaryDisplay
-                  amount={expense.amount}
-                  gstApplicable={expense.gstApplicable}
-                  pstApplicable={expense.pstApplicable}
-                  compact
-                />
+                <span className="text-success fw-semibold">
+                  {formatAmount(totalWithTax)}
+                  {totalTaxAmount > 0 && (
+                    <small className="ms-1 text-muted fw-normal">
+                      (+{formatAmount(totalTaxAmount)} tax)
+                    </small>
+                  )}
+                </span>
               </>
             ) : (
               formatAmount(expense.amount)

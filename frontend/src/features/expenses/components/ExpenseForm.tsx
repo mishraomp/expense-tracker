@@ -26,7 +26,7 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, dirtyFields },
     reset,
     watch,
     setValue,
@@ -111,8 +111,17 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
   // Reset form when expense prop changes (edit mode)
   useEffect(() => {
     if (expense) {
+      const serverGst = expense.gstAmount ?? 0;
+      const serverPst = expense.pstAmount ?? 0;
+      const serverTax = serverGst + serverPst;
+      const serverTotal = expense.amount;
+      const serverSubtotal =
+        expense.gstApplicable || expense.pstApplicable
+          ? Math.max(serverTotal - serverTax, 0)
+          : serverTotal;
+
       reset({
-        amount: expense.amount,
+        amount: serverSubtotal,
         date: expense.date,
         categoryId: expense.categoryId,
         subcategoryId: expense.subcategoryId || undefined,
@@ -215,6 +224,38 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
   // Live description character count
   const descriptionValue = watch('description') || '';
   const descriptionLength = descriptionValue.length;
+
+  const watchedAmount = watch('amount') ?? 0;
+  const watchedGstApplicable = watch('gstApplicable') ?? false;
+  const watchedPstApplicable = watch('pstApplicable') ?? false;
+  const taxInputsDirty =
+    !!dirtyFields.amount || !!dirtyFields.gstApplicable || !!dirtyFields.pstApplicable;
+  const useServerTaxAmounts = isEditMode && !!expense && !taxInputsDirty;
+
+  const serverGstForDisplay = expense?.gstAmount ?? 0;
+  const serverPstForDisplay = expense?.pstAmount ?? 0;
+  const serverTaxForDisplay = serverGstForDisplay + serverPstForDisplay;
+  const serverTotalForDisplay = expense?.amount ?? 0;
+  const serverSubtotalForDisplay =
+    expense?.gstApplicable || expense?.pstApplicable
+      ? Math.max(serverTotalForDisplay - serverTaxForDisplay, 0)
+      : serverTotalForDisplay;
+
+  const subtotalForDisplay = useServerTaxAmounts ? serverSubtotalForDisplay : watchedAmount;
+  const gstAmountForDisplay = useServerTaxAmounts
+    ? serverGstForDisplay
+    : watchedGstApplicable
+      ? subtotalForDisplay * 0.05
+      : 0;
+  const pstAmountForDisplay = useServerTaxAmounts
+    ? serverPstForDisplay
+    : watchedPstApplicable
+      ? subtotalForDisplay * 0.07
+      : 0;
+  const totalTaxForDisplay = gstAmountForDisplay + pstAmountForDisplay;
+  const totalWithTaxForDisplay = useServerTaxAmounts
+    ? serverTotalForDisplay
+    : subtotalForDisplay + totalTaxForDisplay;
 
   return (
     <div className="card">
@@ -380,37 +421,28 @@ export default function ExpenseForm({ expense, onSuccess, onCancel }: ExpenseFor
                   </div>
                 </div>
                 {/* Tax Summary Display */}
-                {(watch('gstApplicable') || watch('pstApplicable')) && watch('amount') > 0 && (
+                {(watchedGstApplicable || watchedPstApplicable) && subtotalForDisplay > 0 && (
                   <div className="alert alert-info small mt-2 mb-0 py-1 px-2">
                     <div className="d-flex justify-content-between mb-1">
                       <span>Subtotal:</span>
-                      <span className="fw-semibold">${watch('amount')?.toFixed(2) || '0.00'}</span>
+                      <span className="fw-semibold">${subtotalForDisplay.toFixed(2)}</span>
                     </div>
-                    {watch('gstApplicable') && (
+                    {watchedGstApplicable && (
                       <div className="d-flex justify-content-between mb-1">
                         <span>GST (5%):</span>
-                        <span className="fw-semibold">
-                          ${((watch('amount') ?? 0) * 0.05).toFixed(2)}
-                        </span>
+                        <span className="fw-semibold">${gstAmountForDisplay.toFixed(2)}</span>
                       </div>
                     )}
-                    {watch('pstApplicable') && (
+                    {watchedPstApplicable && (
                       <div className="d-flex justify-content-between mb-1">
                         <span>PST (7%):</span>
-                        <span className="fw-semibold">
-                          ${((watch('amount') ?? 0) * 0.07).toFixed(2)}
-                        </span>
+                        <span className="fw-semibold">${pstAmountForDisplay.toFixed(2)}</span>
                       </div>
                     )}
                     <div className="border-top pt-1 d-flex justify-content-between">
                       <span className="fw-bold">Total with Tax:</span>
                       <span className="fw-bold text-success">
-                        $
-                        {(
-                          (watch('amount') ?? 0) +
-                          (watch('gstApplicable') ? (watch('amount') ?? 0) * 0.05 : 0) +
-                          (watch('pstApplicable') ? (watch('amount') ?? 0) * 0.07 : 0)
-                        ).toFixed(2)}
+                        ${totalWithTaxForDisplay.toFixed(2)}
                       </span>
                     </div>
                   </div>
