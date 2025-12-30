@@ -1,0 +1,15 @@
+name: npm-ci
+description: Run npm ci in a specified working directory
+
+inputs:
+  working-directory:
+    description: Directory containing package-lock.json
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install dependencies
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: npm ci

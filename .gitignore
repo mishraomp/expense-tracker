@@ -53,6 +53,19 @@ Thumbs.db
 *.seed
 *.pid.lock
 
+# Terraform
+.terraform/
+**/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.auto.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
 # Prisma
 prisma/dev.db
 prisma/dev.db-journal

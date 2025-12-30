@@ -1,0 +1,126 @@
+name: deploy
+
+on:
+    workflow_dispatch:
+        inputs:
+            app_env:
+                description: "Target environment"
+                type: choice
+                required: true
+                options:
+                    - dev
+                    - test
+                    - prod
+            image_tag:
+                description: "Backend image tag (e.g., sha-<full_sha> or vX.Y.Z)"
+                type: string
+                required: true
+
+permissions:
+    contents: read
+    id-token: write
+
+concurrency:
+    group: deploy-${{ inputs.app_env }}
+    cancel-in-progress: false
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+        environment: ${{ inputs.app_env }}
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Terraform
+              uses: hashicorp/setup-terraform@v3
+
+            - name: Compute backend image
+              id: image
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  OWNER_LC="${GITHUB_REPOSITORY_OWNER,,}"
+                  REPO_NAME="${GITHUB_REPOSITORY#*/}"
+                  REPO_LC="${REPO_NAME,,}"
+                  echo "backend_image=ghcr.io/${OWNER_LC}/${REPO_LC}-backend:${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+
+            - name: Azure login (OIDC)
+              uses: azure/login@v2
+              with:
+                  tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+                  subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+                  client-id: ${{ secrets.AZURE_CLIENT_ID }}
+
+            - name: Prepare CI overrides
+              shell: bash
+              working-directory: infra/terraform
+              env:
+                  APP_ENV: ${{ inputs.app_env }}
+                  AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+                  KEY_VAULT_NAME: ${{ secrets.KEY_VAULT_NAME }}
+                  IP_ALLOW_LIST_CIDRS: ${{ secrets.IP_ALLOW_LIST_CIDRS }}
+                  BACKEND_IMAGE: ${{ steps.image.outputs.backend_image }}
+              run: |
+                  set -euo pipefail
+
+                  cat > ci.overrides.auto.tfvars <<EOF
+                  app_env = "${APP_ENV}"
+                  resource_group_name = "${AZURE_RESOURCE_GROUP}"
+                  backend_image = "${BACKEND_IMAGE}"
+                  EOF
+
+                  if [[ -n "${KEY_VAULT_NAME:-}" ]]; then
+                    echo "key_vault_name = \"${KEY_VAULT_NAME}\"" >> ci.overrides.auto.tfvars
+                  fi
+
+                  if [[ -n "${IP_ALLOW_LIST_CIDRS:-}" ]]; then
+                    IFS=',' read -r -a CIDRS <<< "${IP_ALLOW_LIST_CIDRS}"
+                    printf 'ip_allow_list_cidrs = [' >> ci.overrides.auto.tfvars
+                    first=true
+                    for c in "${CIDRS[@]}"; do
+                      c_trimmed="${c//[[:space:]]/}"
+                      if [[ -z "$c_trimmed" ]]; then
+                        continue
+                      fi
+                      if [[ "$first" == true ]]; then
+                        first=false
+                      else
+                        printf ', ' >> ci.overrides.auto.tfvars
+                      fi
+                      printf '"%s"' "$c_trimmed" >> ci.overrides.auto.tfvars
+                    done
+                    printf ']\n' >> ci.overrides.auto.tfvars
+                  fi
+
+            - name: Terraform init (remote state)
+              shell: bash
+              working-directory: infra/terraform
+              env:
+                  ARM_USE_OIDC: true
+                  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+                  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+                  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+              run: |
+                  set -euo pipefail
+                  terraform init \
+                    -backend-config="resource_group_name=${{ secrets.TFSTATE_RESOURCE_GROUP }}" \
+                    -backend-config="storage_account_name=${{ secrets.TFSTATE_STORAGE_ACCOUNT }}" \
+                    -backend-config="container_name=${{ secrets.TFSTATE_CONTAINER }}" \
+                    -backend-config="key=expense-tracker.${{ inputs.app_env }}.tfstate"
+
+            - name: Terraform apply (gated)
+              shell: bash
+              working-directory: infra/terraform
+              env:
+                  ARM_USE_OIDC: true
+                  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+                  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+                  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+                  TF_VAR_postgres_admin_username: ${{ secrets.POSTGRES_ADMIN_USERNAME }}
+                  TF_VAR_postgres_admin_password: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
+              run: |
+                  set -euo pipefail
+                  terraform apply \
+                    -auto-approve \
+                    -var-file=terraform.${{ inputs.app_env }}.tfvars

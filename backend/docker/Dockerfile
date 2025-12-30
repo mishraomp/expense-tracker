@@ -1,12 +1,17 @@
-# Stage 1: Build
-FROM node:24-alpine AS builder
+# Dev/runtime image used by docker-compose and CI smoke tests
+FROM node:24-alpine
+
+RUN apk add --no-cache curl
 
 WORKDIR /app
 
-# Copy package files
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Install dependencies
-RUN npm i
-RUN npm run start:dev
+RUN npm ci
+
+COPY . .
+
+EXPOSE 3000
+
+CMD ["npm", "run", "start:dev"]

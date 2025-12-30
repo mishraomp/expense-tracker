@@ -74,6 +74,38 @@ Notable modules:
 - Dev Tools: Docker Compose, PowerShell helpers, GitHub Actions
 
 ---
+## Infrastructure as Code (Terraform)
+
+Terraform IaC (when enabled by feature specs under `specs/`) lives in:
+
+- `infra/terraform/`
+
+Common commands:
+
+- Format: `terraform fmt -recursive`
+- Validate/plan (single root + per-env tfvars):
+	- `cd infra/terraform`
+	- `terraform init`
+	- `terraform validate`
+	- `terraform plan -var-file=terraform.dev.tfvars`
+
+---
+## Release Artifacts (GHCR)
+
+On every push to `main` (and on version tags like `v1.2.3`), GitHub Actions publishes Docker images to GHCR.
+
+Images:
+- Backend: `ghcr.io/<owner>/<repo>-backend`
+- Frontend: `ghcr.io/<owner>/<repo>-frontend`
+
+Tags:
+- Commit SHA: `sha-<full_sha>` (immutable)
+- Version tag (optional): `vX.Y.Z` (when pushing a git tag)
+
+Rollback guidance:
+- Pick a known-good commit SHA from a previous run and deploy that image tag (for example: `...-backend:sha-<full_sha>`).
+
+---
 ## 5. Local Development Setup
 Prereqs: Node.js (LTS), Docker Desktop, PowerShell 5.1+ (on Windows)
 
@@ -101,9 +133,9 @@ npm run dev
 ## 6. Environment Variables
 Typical vars (use `.env` or pass via Docker Compose):
 - `DATABASE_URL` – Prisma Postgres connection
-- `KEYCLOAK_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET`
+- `KEYCLOAK_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_CLIENT_ID_API`
 - `PORT` – Backend port
-- Frontend Vite envs: `VITE_API_BASE_URL`, `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`, `VITE_KEYCLOAK_CLIENT_ID`
+- Frontend Vite envs: `VITE_API_URL`, `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`, `VITE_KEYCLOAK_CLIENT_ID`
 
 Never commit secrets to the repository. Use a `.env.example` if helpful.
 
@@ -167,6 +199,32 @@ cd ../frontend; npm test
 ```
 
 Backend uses Vitest + in-memory mocks for many unit tests. Frontend uses Vitest + Testing Library.
+
+### PR checklist (CI-equivalent)
+
+Backend:
+```powershell
+cd backend
+npm ci
+npm run lint
+npm run test:cov
+```
+
+Frontend:
+```powershell
+cd frontend
+npm ci
+npm run lint
+npm run test:cov
+```
+
+Optional (when user journeys/auth are impacted):
+```powershell
+docker compose up -d --build
+cd frontend
+npm run e2e:install
+$env:E2E_BASE_URL = "http://localhost:5173"; npm run e2e:ci
+```
 
 ---
 ## 14. Accessibility & UI

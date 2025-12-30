@@ -1,0 +1,34 @@
+# Dependencies
+**/node_modules/
+
+# Builds
+**/dist/
+**/build/
+**/*.tsbuildinfo
+
+# Tests
+**/coverage/
+**/.nyc_output/
+
+# VCS
+.git/
+
+# IDE
+.vscode/
+.idea/
+
+# Env files
+.env*
+
+# Logs
+**/*.log
+logs/
+
+# Terraform
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+
+# OS
+**/.DS_Store
+**/Thumbs.db

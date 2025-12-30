@@ -75,6 +75,9 @@ services:
       NODE_ENV: ${NODE_ENV:-development}
       PORT: ${API_PORT:-3000}
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-expense_tracker}?schema=public
+      KEYCLOAK_URL: ${KEYCLOAK_URL:-http://keycloak:8080}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-expense-tracker}
+      KEYCLOAK_CLIENT_ID_API: ${KEYCLOAK_CLIENT_ID_API:-expense-tracker-api}
       JWT_SECRET: ${JWT_SECRET:-defaultsecret}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
       PLAID_CLIENT_ID: ${PLAID_CLIENT_ID:-default}
@@ -104,6 +107,9 @@ services:
     container_name: expense-tracker-frontend
     environment:
       VITE_API_URL: ${VITE_API_URL:-http://localhost:3000/api/v1}
+      VITE_KEYCLOAK_URL: ${VITE_KEYCLOAK_URL:-http://localhost:8080}
+      VITE_KEYCLOAK_REALM: ${VITE_KEYCLOAK_REALM:-expense-tracker}
+      VITE_KEYCLOAK_CLIENT_ID: ${VITE_KEYCLOAK_CLIENT_ID:-expense-tracker-web}
     ports:
       - "${FRONTEND_PORT:-5173}:5173"
     volumes:

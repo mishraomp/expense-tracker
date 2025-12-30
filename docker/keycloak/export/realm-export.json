@@ -33,5 +33,22 @@
       "standardFlowEnabled": true,
       "attributes": { "pkce.code.challenge.method": "S256" }
     }
+  ],
+  "users": [
+    {
+      "username": "e2etestuser",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "e2etestuser@example.com",
+      "firstName": "E2E",
+      "lastName": "Test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Password",
+          "temporary": false
+        }
+      ]
+    }
   ]
 }
