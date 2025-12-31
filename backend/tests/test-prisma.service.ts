@@ -19,11 +19,13 @@ export class TestPrismaService extends PrismaClient implements OnModuleInit, OnM
   async cleanDatabase() {
     // Clean in correct order respecting foreign keys
     await this.$transaction([
-      this.attachment.deleteMany(),
+      this.attachments.deleteMany(),
+      this.budget.deleteMany(),
       this.expense.deleteMany(),
       this.income.deleteMany(),
       this.importSession.deleteMany(),
       this.financialConnection.deleteMany(),
+      this.subcategory.deleteMany(),
       this.category.deleteMany({ where: { userId: { not: null } } }),
       this.user.deleteMany(),
     ]);

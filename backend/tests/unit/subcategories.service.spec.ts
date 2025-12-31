@@ -19,6 +19,13 @@ describe('SubcategoriesService', () => {
         delete: vi.fn(),
       },
       expense: { count: vi.fn(async () => 5) },
+      budget: {
+        findFirst: vi.fn(async () => null),
+        findMany: vi.fn(async () => []),
+        create: vi.fn(),
+        update: vi.fn(),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
     };
     svc = new SubcategoriesService(mockPrisma as any);
   });
@@ -38,6 +45,13 @@ describe('SubcategoriesService', () => {
   });
 
   it('update throws when target category missing', async () => {
+    // First, the service fetches the existing subcategory with category
+    mockPrisma.subcategory.findUnique.mockResolvedValueOnce({
+      id: 'sub-1',
+      categoryId: 'cat-1',
+      category: { id: 'cat-1', userId: 'user-1' },
+    });
+    // Then it checks if the new target category exists
     mockPrisma.category.findUnique.mockResolvedValueOnce(null);
     mockPrisma.subcategory.update.mockResolvedValueOnce({ id: 'sub-1' });
     await expect(svc.update('sub-1', { categoryId: 'cat-unknown' } as any)).rejects.toBeInstanceOf(

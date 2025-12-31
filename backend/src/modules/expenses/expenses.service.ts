@@ -11,6 +11,7 @@ import {
 import { ExpenseListQueryDto } from './dto/expense-list-query.dto';
 import { Decimal } from '@prisma/client/runtime/client.js';
 import { AttachmentsService } from '../attachments/attachments.service';
+import { selectEffectiveBudget } from '../../common/budgets';
 
 /**
  * Interface for rows returned from mv_expense_list materialized view
@@ -767,32 +768,30 @@ export class ExpensesService {
     // Use Decimal arithmetic for precise calculations
     const total = expenses.reduce((sum, expense) => sum.add(expense.amount), new Decimal(0));
 
-    // Fetch budget info: subcategory takes precedence over category
+    // Fetch budget info using the new budgets table
+    // Subcategory budget takes precedence over category budget
     let budgetAmount: Decimal | undefined;
     let budgetPeriod: string | undefined;
     let budgetSource: 'subcategory' | 'category' | undefined;
 
-    if (subcategoryId) {
-      const subcategory = await this.prisma.subcategory.findUnique({
-        where: { id: subcategoryId },
-        select: { budgetAmount: true, budgetPeriod: true },
-      });
-      if (subcategory?.budgetAmount) {
-        budgetAmount = subcategory.budgetAmount;
-        budgetPeriod = subcategory.budgetPeriod ?? undefined;
-        budgetSource = 'subcategory';
-      }
-    }
+    // Determine target date for budget lookup
+    const targetDate = startDate
+      ? new Date(startDate)
+      : filterYear
+        ? new Date(filterYear, (filterMonth ?? 1) - 1, 1)
+        : new Date();
 
-    if (!budgetAmount && categoryId) {
-      const category = await this.prisma.category.findUnique({
-        where: { id: categoryId },
-        select: { budgetAmount: true, budgetPeriod: true },
-      });
-      if (category?.budgetAmount) {
-        budgetAmount = category.budgetAmount;
-        budgetPeriod = category.budgetPeriod ?? undefined;
-        budgetSource = 'category';
+    if (categoryId) {
+      const result = await selectEffectiveBudget(
+        this.prisma,
+        categoryId,
+        subcategoryId ?? null,
+        targetDate,
+      );
+      if (result.budgetAmount) {
+        budgetAmount = result.budgetAmount;
+        budgetPeriod = result.budgetPeriod ?? undefined;
+        budgetSource = result.budgetSource ?? undefined;
       }
     }
 

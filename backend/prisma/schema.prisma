@@ -17,6 +17,7 @@ model User {
   createdAt            DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   keycloakSub          String?               @unique(map: "idx_users_keycloak_sub_unique") @map("keycloak_sub") @db.VarChar(255)
+  budgets              Budget[]
   categories           Category[]            @relation("UserCustomCategories")
   expenses             Expense[]
   financialConnections FinancialConnection[]
@@ -39,8 +40,7 @@ model Category {
   createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt        DateTime?     @map("deleted_at") @db.Timestamptz(6)
-  budgetAmount     Decimal?      @map("budget_amount") @db.Decimal(12, 2)
-  budgetPeriod     BudgetPeriod? @map("budget_period")
+  budgets          Budget[]
   user             User?         @relation("UserCustomCategories", fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   expenseItems     ExpenseItem[]
   expenses         Expense[]
@@ -58,8 +58,7 @@ model Subcategory {
   categoryId   String        @map("category_id") @db.Uuid
   createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  budgetAmount Decimal?      @map("budget_amount") @db.Decimal(12, 2)
-  budgetPeriod BudgetPeriod? @map("budget_period")
+  budgets      Budget[]
   expenseItems ExpenseItem[]
   expenses     Expense[]
   category     Category      @relation("CategorySubcategories", fields: [categoryId], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -331,6 +330,28 @@ model tax_defaults {
   created_at DateTime @default(now()) @db.Timestamp(6)
   updated_at DateTime @default(now()) @db.Timestamp(6)
   users      User?    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Budget {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  amount        Decimal      @db.Decimal(12, 2)
+  startDate     DateTime     @map("start_date") @db.Date
+  endDate       DateTime     @map("end_date") @db.Date
+  categoryId    String?      @map("category_id") @db.Uuid
+  subcategoryId String?      @map("subcategory_id") @db.Uuid
+  userId        String?      @map("user_id") @db.Uuid
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  category      Category?    @relation(fields: [categoryId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_budgets_category")
+  subcategory   Subcategory? @relation(fields: [subcategoryId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_budgets_subcategory")
+  user          User?        @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_budgets_user")
+
+  @@index([categoryId, startDate, endDate, updatedAt(sort: Desc)], map: "idx_budgets_category_lookup")
+  @@index([subcategoryId, startDate, endDate, updatedAt(sort: Desc)], map: "idx_budgets_subcategory_lookup")
+  @@index([userId], map: "idx_budgets_user_id")
+  @@map("budgets")
 }
 
 enum CategoryType {

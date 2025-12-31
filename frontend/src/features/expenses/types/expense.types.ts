@@ -9,6 +9,8 @@ export interface Category {
   icon: string | null;
   budgetAmount?: string | null;
   budgetPeriod?: 'monthly' | 'annual' | null;
+  budgetStartDate?: string | null;
+  budgetEndDate?: string | null;
 }
 
 export interface Expense {

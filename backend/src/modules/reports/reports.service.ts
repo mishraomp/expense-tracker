@@ -580,6 +580,41 @@ export class ReportsService {
     return rows;
   }
 
+  /**
+   * Get total budget amount for a date range.
+   * Sums all budgets (both category-level and subcategory-level) that overlap with the date range.
+   */
+  async getTotalBudget(
+    userId: string,
+    params: { startDate: string; endDate: string },
+  ): Promise<{ totalBudget: number }> {
+    const { startDate, endDate } = params;
+
+    // Sum all budgets where the budget period overlaps with the requested date range
+    // A budget overlaps if: budget.start_date <= endDate AND budget.end_date >= startDate
+    // For subcategory budgets, we get the user via the parent category
+    const result = await this.prisma.$queryRaw<{ total: string }[]>(
+      Prisma.sql`
+        SELECT COALESCE(SUM(b.amount), 0)::text as total
+        FROM budgets b
+        LEFT JOIN categories c ON b.category_id = c.id
+        LEFT JOIN subcategories s ON b.subcategory_id = s.id
+        LEFT JOIN categories sc ON s.category_id = sc.id
+        WHERE b.start_date <= ${endDate}::date
+          AND b.end_date >= ${startDate}::date
+          AND (
+            (b.category_id IS NOT NULL AND (c.user_id = ${userId}::uuid OR c.user_id IS NULL))
+            OR
+            (b.subcategory_id IS NOT NULL AND (sc.user_id = ${userId}::uuid OR sc.user_id IS NULL))
+          )
+      `,
+    );
+
+    return {
+      totalBudget: parseFloat(result[0]?.total || '0'),
+    };
+  }
+
   async getIncomeVsExpense(
     userId: string,
     query: IncomeVsExpenseQueryDto,

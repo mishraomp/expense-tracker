@@ -63,11 +63,7 @@ export class ExpenseItemsController {
   @ApiOperation({ summary: 'Get a single expense item' })
   @ApiParam({ name: 'expenseId', description: 'Parent expense ID' })
   @ApiParam({ name: 'itemId', description: 'Item ID' })
-  findOne(
-    @Param('expenseId') expenseId: string,
-    @Param('itemId') itemId: string,
-    @Request() req,
-  ) {
+  findOne(@Param('expenseId') expenseId: string, @Param('itemId') itemId: string, @Request() req) {
     const userId = req.user.sub;
     return this.expenseItemsService.findOne(userId, expenseId, itemId);
   }
@@ -91,11 +87,7 @@ export class ExpenseItemsController {
   @ApiOperation({ summary: 'Delete an expense item' })
   @ApiParam({ name: 'expenseId', description: 'Parent expense ID' })
   @ApiParam({ name: 'itemId', description: 'Item ID' })
-  remove(
-    @Param('expenseId') expenseId: string,
-    @Param('itemId') itemId: string,
-    @Request() req,
-  ) {
+  remove(@Param('expenseId') expenseId: string, @Param('itemId') itemId: string, @Request() req) {
     const userId = req.user.sub;
     return this.expenseItemsService.remove(userId, expenseId, itemId);
   }

@@ -169,7 +169,7 @@ export class IncomesService {
 
     // Attachment counts (ACTIVE only) for these incomes
     const incomeIds = incomes.map((i) => i.id);
-    let counts: Record<string, number> = {};
+    const counts: Record<string, number> = {};
     if (incomeIds.length) {
       const rows = await this.prisma.attachments.findMany({
         where: { linked_income_id: { in: incomeIds }, status: 'ACTIVE' },

@@ -78,6 +78,20 @@ export class ReportsController {
   }
 
   /**
+   * GET /reports/budgets/total
+   * Get total budget amount for a date range
+   */
+  @Get('budgets/total')
+  getTotalBudget(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @Request() req,
+  ) {
+    const userId = req.user.sub;
+    return this.reportsService.getTotalBudget(userId, { startDate, endDate });
+  }
+
+  /**
    * GET /reports/items/top
    * Get top expense items aggregated by name
    */
