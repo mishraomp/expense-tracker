@@ -1,7 +1,22 @@
-import { IsOptional, IsString, IsEnum, IsDateString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsOptional, IsString, IsEnum, IsDateString, IsInt, Min, Max } from 'class-validator';
 import { IncomeSource, IncomeFrequency } from '@prisma/client';
 
 export class IncomeListQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1900)
+  @Max(3000)
+  year?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(12)
+  month?: number;
+
   @IsOptional()
   @IsDateString()
   startDate?: string;

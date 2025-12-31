@@ -9,6 +9,8 @@ import type {
 export const incomeApi = {
   getIncomes: async (query?: IncomeListQuery): Promise<Income[]> => {
     const params = new URLSearchParams();
+    if (query?.year !== undefined) params.append('year', String(query.year));
+    if (query?.month !== undefined) params.append('month', String(query.month));
     if (query?.startDate) params.append('startDate', query.startDate);
     if (query?.endDate) params.append('endDate', query.endDate);
     if (query?.source) params.append('source', query.source);

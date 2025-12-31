@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { IncomesService } from '../../src/modules/incomes/incomes.service';
 import { Decimal } from '@prisma/client/runtime/client.js';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 describe('IncomesService', () => {
   let mockPrisma: any;
@@ -84,6 +84,39 @@ describe('IncomesService', () => {
     const res = await svc.findAll('user-1', {} as any);
     expect(res).toHaveLength(1);
     expect((res[0] as any).attachmentCount).toBeDefined();
+  });
+
+  it('findAll with year applies year boundary filters', async () => {
+    mockPrisma.income.findMany.mockResolvedValueOnce([
+      { id: 'inc-1', amount: new Decimal(100), date: new Date('2025-01-01') },
+    ]);
+    mockPrisma.attachments.findMany.mockResolvedValueOnce([{ linked_income_id: 'inc-1' }]);
+
+    await svc.findAll('user-1', { year: 2025 } as any);
+
+    expect(mockPrisma.income.findMany).toHaveBeenCalled();
+    const args = mockPrisma.income.findMany.mock.calls[0][0];
+    expect(args.where.date.gte).toEqual(new Date(Date.UTC(2025, 0, 1)));
+    expect(args.where.date.lt).toEqual(new Date(Date.UTC(2026, 0, 1)));
+  });
+
+  it('findAll with year+month applies month boundary filters', async () => {
+    mockPrisma.income.findMany.mockResolvedValueOnce([
+      { id: 'inc-1', amount: new Decimal(100), date: new Date('2025-02-01') },
+    ]);
+    mockPrisma.attachments.findMany.mockResolvedValueOnce([{ linked_income_id: 'inc-1' }]);
+
+    await svc.findAll('user-1', { year: 2025, month: 2 } as any);
+
+    const args = mockPrisma.income.findMany.mock.calls[0][0];
+    expect(args.where.date.gte).toEqual(new Date(Date.UTC(2025, 1, 1)));
+    expect(args.where.date.lt).toEqual(new Date(Date.UTC(2025, 2, 1)));
+  });
+
+  it('findAll with month but no year throws', async () => {
+    await expect(svc.findAll('user-1', { month: 1 } as any)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 
   it('findOne throws if not found', async () => {
