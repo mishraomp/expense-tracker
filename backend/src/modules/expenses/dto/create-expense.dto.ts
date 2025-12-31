@@ -91,4 +91,14 @@ export class CreateExpenseDto {
   @IsUUID('4', { each: true, message: 'Each tag ID must be a valid UUID' })
   @ArrayMaxSize(10, { message: 'Cannot add more than 10 tags per expense' })
   tagIds?: string[];
+
+  @IsOptional()
+  @IsBoolean({ message: 'GST applicability must be a boolean' })
+  @Type(() => Boolean)
+  gstApplicable?: boolean;
+
+  @IsOptional()
+  @IsBoolean({ message: 'PST applicability must be a boolean' })
+  @Type(() => Boolean)
+  pstApplicable?: boolean;
 }

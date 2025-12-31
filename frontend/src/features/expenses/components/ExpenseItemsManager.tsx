@@ -69,7 +69,9 @@ export default function ExpenseItemsManager({
                 <th className="col-name">Name</th>
                 <th className="col-amount text-end">Amount</th>
                 <th className="col-category">Category</th>
-                <th className="col-notes">Notes</th>
+                <th className="col-subcategory">Subcategory</th>
+                <th className="col-tax text-center">Tax</th>
+                <th className="col-total text-end">Total</th>
                 <th className="col-actions"></th>
               </tr>
             </thead>

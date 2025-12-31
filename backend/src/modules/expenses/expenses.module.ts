@@ -6,9 +6,10 @@ import { ExpenseItemsService } from './expense-items.service';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { UsersModule } from '../users/users.module';
 import { AttachmentsModule } from '../attachments/attachments.module';
+import { TaxesModule } from '../taxes/taxes.module';
 
 @Module({
-  imports: [PrismaModule, UsersModule, AttachmentsModule],
+  imports: [PrismaModule, UsersModule, AttachmentsModule, TaxesModule],
   controllers: [ExpensesController, ExpenseItemsController],
   providers: [ExpensesService, ExpenseItemsService],
   exports: [ExpensesService, ExpenseItemsService],

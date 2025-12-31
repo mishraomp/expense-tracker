@@ -22,10 +22,38 @@ export default function ExpenseListItem({ expense, onEdit, onDelete }: ExpenseLi
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
   };
 
+  const totalTaxAmount =
+    expense.totalTaxAmount ?? (expense.gstAmount ?? 0) + (expense.pstAmount ?? 0);
+  const totalWithTax = expense.amount;
+  const subtotal = Math.max(totalWithTax - totalTaxAmount, 0);
+
   return (
     <tr>
       <td>{formatDate(expense.date)}</td>
-      <td>{formatAmount(expense.amount)}</td>
+      <td>
+        <div className="d-flex flex-column gap-1">
+          <span>
+            {expense.gstApplicable || expense.pstApplicable ? (
+              <>
+                <span className="text-muted text-decoration-line-through small">
+                  {formatAmount(subtotal)}
+                </span>
+                <br />
+                <span className="text-success fw-semibold">
+                  {formatAmount(totalWithTax)}
+                  {totalTaxAmount > 0 && (
+                    <small className="ms-1 text-muted fw-normal">
+                      (+{formatAmount(totalTaxAmount)} tax)
+                    </small>
+                  )}
+                </span>
+              </>
+            ) : (
+              formatAmount(expense.amount)
+            )}
+          </span>
+        </div>
+      </td>
       <td>
         {expense.category && (
           <div className="d-flex flex-column">

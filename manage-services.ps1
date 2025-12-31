@@ -32,6 +32,17 @@ function StartServiceIfNotRunning($service) {
   return $?
 }
 
+function RunFlywayMigrate() {
+  Write-Log "Running Flyway migrations..."
+  & docker compose -f $composeFile run --rm flyway | Out-Host
+  if ($LASTEXITCODE -ne 0) {
+    Write-Log "ERROR: Flyway migration failed"
+    return $false
+  }
+  Write-Log "Flyway migrations applied"
+  return $true
+}
+
 function StopService($service) {
   Write-Log "Stopping service: $service"
   & docker compose -f $composeFile stop $service | Out-Null
@@ -224,6 +235,11 @@ if ($Action -eq 'stop') {
 
   # Start Docker services (skip if already running)
   StartServiceIfNotRunning postgres
+
+  if (-not (RunFlywayMigrate)) {
+    Write-Log "ERROR: Database migrations failed. Aborting."
+    exit 1
+  }
   
   StartServiceIfNotRunning keycloak
   
