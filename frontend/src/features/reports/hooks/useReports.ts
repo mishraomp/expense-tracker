@@ -3,6 +3,7 @@ import { reportsApi } from '../api/reportsApi';
 import type {
   SpendingOverTimeQuery,
   SpendingByCategoryQuery,
+  SpendingByCategoryTagsQuery,
   SpendingBySubcategoryQuery,
   BudgetVsActualQuery,
   BudgetReportQuery,
@@ -32,6 +33,19 @@ export const useSpendingByCategory = (query: SpendingByCategoryQuery & { enabled
   });
 };
 
+export const useSpendingByCategoryTags = (
+  query: SpendingByCategoryTagsQuery & { enabled?: boolean },
+) => {
+  const { enabled = true, ...apiQuery } = query;
+  const hasFilter = !!apiQuery.categoryId || (apiQuery.tagIds?.length ?? 0) > 0;
+  return useQuery({
+    queryKey: ['reports', 'spending-by-category-tags', apiQuery],
+    queryFn: () => reportsApi.getSpendingByCategoryTags(apiQuery),
+    staleTime: 5 * 60 * 1000,
+    enabled: enabled && !!apiQuery.startDate && !!apiQuery.endDate && hasFilter,
+  });
+};
+
 export const useSpendingBySubcategory = (
   query: SpendingBySubcategoryQuery & { enabled?: boolean },
 ) => {
@@ -49,7 +63,7 @@ export const useBudgetVsActual = (query: BudgetVsActualQuery) => {
     queryKey: ['reports', 'budget-vs-actual', query],
     queryFn: () => reportsApi.getBudgetVsActual(query),
     staleTime: 5 * 60 * 1000,
-    enabled: !!query.startDate && !!query.endDate,
+    enabled: true,
   });
 };
 

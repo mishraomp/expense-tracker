@@ -50,6 +50,8 @@ export interface UpdateIncomeRequest {
 }
 
 export interface IncomeListQuery {
+  year?: number;
+  month?: number;
   startDate?: string;
   endDate?: string;
   source?: IncomeSource;
