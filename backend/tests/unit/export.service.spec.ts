@@ -32,6 +32,10 @@ describe('ExportService', () => {
           },
         ]),
       },
+      budget: {
+        findFirst: vi.fn(async () => null),
+        findMany: vi.fn(async () => []),
+      },
     };
     svc = new ExportService(mockPrisma as any);
   });

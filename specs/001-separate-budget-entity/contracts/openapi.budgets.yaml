@@ -1,0 +1,418 @@
+openapi: 3.0.3
+info:
+  title: Expense Tracker - Budget Refactor Contracts
+  version: 0.1.0
+
+paths:
+  /api/v1/categories/{id}:
+    patch:
+      summary: Update category fields (including budget)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCategoryRequest'
+      responses:
+        '200':
+          description: Updated category
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryResponse'
+
+  /api/v1/subcategories:
+    post:
+      summary: Create a subcategory (including optional budget)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSubcategoryRequest'
+      responses:
+        '201':
+          description: Created subcategory
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubcategoryResponse'
+
+  /api/v1/subcategories/{id}:
+    patch:
+      summary: Update subcategory fields (including budget)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSubcategoryRequest'
+      responses:
+        '200':
+          description: Updated subcategory
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubcategoryResponse'
+
+  /api/v1/reports/budget-vs-actual:
+    get:
+      summary: Budget vs actual report (monthly buckets)
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: categoryId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: subcategoryId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Monthly buckets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BudgetVsActualPoint'
+
+  /api/v1/reports/budgets/categories:
+    get:
+      summary: Category budget report (view-backed)
+      parameters:
+        - name: startDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: categoryId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CategoryBudgetRow'
+
+  /api/v1/reports/budgets/subcategories:
+    get:
+      summary: Subcategory budget report (view-backed)
+      parameters:
+        - name: startDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: categoryId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: subcategoryId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Rows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SubcategoryBudgetRow'
+
+components:
+  schemas:
+    BudgetPeriodDerived:
+      type: string
+      description: |
+        Derived for compatibility with legacy clients.
+        Returned when the budget date range aligns exactly with a calendar month/year.
+      enum: [monthly, annual]
+
+    BudgetRange:
+      type: object
+      required: [amount, startDate, endDate]
+      properties:
+        amount:
+          type: string
+          description: Decimal string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+
+    UpdateCategoryRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        colorCode:
+          type: string
+          nullable: true
+        icon:
+          type: string
+          nullable: true
+        budget:
+          $ref: '#/components/schemas/BudgetRange'
+        clearBudget:
+          type: boolean
+          description: When true, removes budgets for this category in the active period.
+
+    CategoryResponse:
+      type: object
+      required: [id, name, type]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        type:
+          type: string
+        colorCode:
+          type: string
+          nullable: true
+        icon:
+          type: string
+          nullable: true
+        budgetAmount:
+          type: string
+          nullable: true
+          description: Active budget amount as decimal string
+        budgetPeriod:
+          allOf:
+            - $ref: '#/components/schemas/BudgetPeriodDerived'
+          nullable: true
+          description: Derived period for legacy compatibility
+        budgetStartDate:
+          type: string
+          format: date
+          nullable: true
+          description: ISO date string (YYYY-MM-DD) for budget start
+        budgetEndDate:
+          type: string
+          format: date
+          nullable: true
+          description: ISO date string (YYYY-MM-DD) for budget end
+
+    CreateSubcategoryRequest:
+      type: object
+      required: [categoryId, name]
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        budget:
+          $ref: '#/components/schemas/BudgetRange'
+
+    UpdateSubcategoryRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        budget:
+          $ref: '#/components/schemas/BudgetRange'
+        clearBudget:
+          type: boolean
+
+    SubcategoryResponse:
+      type: object
+      required: [id, categoryId, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        categoryId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        budgetAmount:
+          type: string
+          nullable: true
+          description: Active budget amount as decimal string
+        budgetPeriod:
+          allOf:
+            - $ref: '#/components/schemas/BudgetPeriodDerived'
+          nullable: true
+          description: Derived period for legacy compatibility
+        budgetStartDate:
+          type: string
+          format: date
+          nullable: true
+          description: ISO date string (YYYY-MM-DD) for budget start
+        budgetEndDate:
+          type: string
+          format: date
+          nullable: true
+          description: ISO date string (YYYY-MM-DD) for budget end
+
+    BudgetVsActualPoint:
+      type: object
+      required: [bucket, budgetAmount, actualAmount]
+      properties:
+        bucket:
+          type: string
+          format: date
+        budgetAmount:
+          type: string
+        actualAmount:
+          type: string
+
+    CategoryBudgetRow:
+      type: object
+      required: [categoryId, categoryName, categoryType, totalSpent]
+      properties:
+        categoryId:
+          type: string
+          format: uuid
+        categoryName:
+          type: string
+        categoryType:
+          type: string
+        colorCode:
+          type: string
+          nullable: true
+        icon:
+          type: string
+          nullable: true
+        budgetAmount:
+          type: string
+          nullable: true
+        budgetPeriod:
+          allOf:
+            - $ref: '#/components/schemas/BudgetPeriodDerived'
+          nullable: true
+        periodStart:
+          type: string
+          format: date
+          nullable: true
+        periodEnd:
+          type: string
+          format: date
+          nullable: true
+        totalSpent:
+          type: string
+        percentUsed:
+          type: string
+          nullable: true
+        remainingBudget:
+          type: string
+          nullable: true
+        isOverBudget:
+          type: boolean
+        overBudgetAmount:
+          type: string
+          nullable: true
+
+    SubcategoryBudgetRow:
+      type: object
+      required: [subcategoryId, subcategoryName, categoryId, categoryName, totalSpent]
+      properties:
+        subcategoryId:
+          type: string
+          format: uuid
+        subcategoryName:
+          type: string
+        categoryId:
+          type: string
+          format: uuid
+        categoryName:
+          type: string
+        categoryType:
+          type: string
+        categoryColor:
+          type: string
+          nullable: true
+        categoryIcon:
+          type: string
+          nullable: true
+        budgetAmount:
+          type: string
+          nullable: true
+        budgetPeriod:
+          allOf:
+            - $ref: '#/components/schemas/BudgetPeriodDerived'
+          nullable: true
+        periodStart:
+          type: string
+          format: date
+          nullable: true
+        periodEnd:
+          type: string
+          format: date
+          nullable: true
+        totalSpent:
+          type: string
+        percentUsed:
+          type: string
+          nullable: true
+        remainingBudget:
+          type: string
+          nullable: true
+        isOverBudget:
+          type: boolean
+        overBudgetAmount:
+          type: string
+          nullable: true

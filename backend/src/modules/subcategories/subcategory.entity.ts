@@ -1,11 +1,11 @@
-import { Prisma } from '@prisma/client';
-
+/**
+ * Core Subcategory entity (matches DB schema after V3.2.0 migration)
+ * Budget fields are now stored in separate `budgets` table
+ */
 export interface Subcategory {
   id: string;
   name: string;
   categoryId: string;
-  budgetAmount?: Prisma.Decimal | null;
-  budgetPeriod?: 'monthly' | 'annual' | null;
   createdAt: Date;
   updatedAt: Date;
 }

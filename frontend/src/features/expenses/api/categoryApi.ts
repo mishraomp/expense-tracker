@@ -2,13 +2,17 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../../services/api';
 import type { Category } from '../types/expense.types';
 
-export const categoryKeys = { all: ['categories'] as const };
+export const categoryKeys = {
+  all: ['categories'] as const,
+  forDate: (date?: string) => ['categories', { date }] as const,
+};
 
-export const useCategories = () => {
+export const useCategories = (targetDate?: string) => {
   return useQuery({
-    queryKey: categoryKeys.all,
+    queryKey: categoryKeys.forDate(targetDate),
     queryFn: async (): Promise<Category[]> => {
-      const response = await api.get('/categories');
+      const params = targetDate ? { targetDate } : {};
+      const response = await api.get('/categories', { params });
       return response.data;
     },
     staleTime: 1000 * 60 * 10, // Categories don't change often, cache for 10 minutes
@@ -24,6 +28,8 @@ export const useCreateCategory = () => {
       icon?: string;
       budgetAmount?: string | number;
       budgetPeriod?: 'monthly' | 'annual';
+      budgetStartDate?: string;
+      budgetEndDate?: string;
     }) => {
       const res = await api.post('/categories', data);
       return res.data as Category;
@@ -43,7 +49,16 @@ export const useUpdateCategory = () => {
     }: {
       id: string;
       data: Partial<
-        Pick<Category, 'name' | 'colorCode' | 'icon' | 'budgetAmount' | 'budgetPeriod'>
+        Pick<
+          Category,
+          | 'name'
+          | 'colorCode'
+          | 'icon'
+          | 'budgetAmount'
+          | 'budgetPeriod'
+          | 'budgetStartDate'
+          | 'budgetEndDate'
+        >
       >;
     }) => {
       const res = await api.put(`/categories/${id}`, data);

@@ -11,9 +11,8 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
-import { SubcategoriesService } from './subcategories.service';
+import { SubcategoriesService, SubcategoryWithBudget } from './subcategories.service';
 import { CreateSubcategoryDto, UpdateSubcategoryDto, SubcategoryQueryDto } from './dto';
-import { Subcategory } from './subcategory.entity';
 
 @ApiBearerAuth('bearer')
 @Controller({ version: '1', path: 'subcategories' })
@@ -21,12 +20,12 @@ export class SubcategoriesController {
   constructor(private readonly subcategoriesService: SubcategoriesService) {}
 
   @Post()
-  async create(@Body() dto: CreateSubcategoryDto): Promise<Subcategory> {
+  async create(@Body() dto: CreateSubcategoryDto): Promise<SubcategoryWithBudget> {
     return this.subcategoriesService.create(dto);
   }
 
   @Get()
-  async findAll(@Query() query: SubcategoryQueryDto): Promise<Subcategory[]> {
+  async findAll(@Query() query: SubcategoryQueryDto): Promise<SubcategoryWithBudget[]> {
     return this.subcategoriesService.findAll(query.categoryId);
   }
 
@@ -36,7 +35,10 @@ export class SubcategoriesController {
   }
 
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() dto: UpdateSubcategoryDto): Promise<Subcategory> {
+  async update(
+    @Param('id') id: string,
+    @Body() dto: UpdateSubcategoryDto,
+  ): Promise<SubcategoryWithBudget> {
     return this.subcategoriesService.update(id, dto);
   }
 

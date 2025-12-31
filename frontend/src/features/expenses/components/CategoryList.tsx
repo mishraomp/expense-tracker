@@ -5,19 +5,93 @@ import CreateCategoryModal from './CreateCategoryModal';
 import EditCategoryModal from './EditCategoryModal';
 import SubcategoryManager from './SubcategoryManager';
 
+function getDefaultDateRange() {
+  const now = new Date();
+  const startOfYear = new Date(now.getFullYear(), 0, 1);
+  const endOfYear = new Date(now.getFullYear(), 11, 31);
+  return {
+    startDate: startOfYear.toISOString().split('T')[0],
+    endDate: endOfYear.toISOString().split('T')[0],
+  };
+}
+
 export default function CategoryList() {
-  const { data: categories, isLoading, error } = useCategories();
+  const defaults = getDefaultDateRange();
+  const [startDate, setStartDate] = useState(defaults.startDate);
+  const [endDate, setEndDate] = useState(defaults.endDate);
+
+  // Use the midpoint of the range as the target date for budget lookup
+  const targetDate = startDate || undefined;
+
+  const { data: categories, isLoading, error } = useCategories(targetDate);
   const del = useDeleteCategory();
   const [isOpen, setOpen] = useState(false);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
 
-  const custom = (categories || []).filter((c) => c.type === 'custom');
-  const predefined = (categories || []).filter((c) => c.type === 'predefined');
+  // Filter categories to show only those with budgets overlapping the date range
+  const filterByDateRange = (cats: Category[]) => {
+    if (!startDate && !endDate) return cats;
+
+    return cats.map((cat) => {
+      // Check if category budget overlaps with the filter range
+      const catStart = cat.budgetStartDate;
+      const catEnd = cat.budgetEndDate;
+
+      // If category has no budget dates, keep it but show no budget
+      if (!catStart || !catEnd) {
+        return cat;
+      }
+
+      // Check overlap: budget range overlaps filter range
+      const filterStart = startDate || '1970-01-01';
+      const filterEnd = endDate || '9999-12-31';
+      const overlaps = catStart <= filterEnd && catEnd >= filterStart;
+
+      if (!overlaps) {
+        // Return category without budget info (budget not active in range)
+        return {
+          ...cat,
+          budgetAmount: null,
+          budgetPeriod: null,
+          budgetStartDate: null,
+          budgetEndDate: null,
+        };
+      }
+
+      return cat;
+    });
+  };
+
+  const filteredCategories = filterByDateRange(categories || []);
+  const custom = filteredCategories.filter((c) => c.type === 'custom');
+  const predefined = filteredCategories.filter((c) => c.type === 'predefined');
 
   const onDelete = async (cat: Category) => {
     if (!confirm(`Delete category "${cat.name}"?`)) return;
     await del.mutateAsync(cat.id);
+  };
+
+  const setPreset = (preset: 'thisYear' | 'lastYear' | 'thisMonth' | 'all') => {
+    const now = new Date();
+    switch (preset) {
+      case 'thisYear':
+        setStartDate(new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0]);
+        setEndDate(new Date(now.getFullYear(), 11, 31).toISOString().split('T')[0]);
+        break;
+      case 'lastYear':
+        setStartDate(new Date(now.getFullYear() - 1, 0, 1).toISOString().split('T')[0]);
+        setEndDate(new Date(now.getFullYear() - 1, 11, 31).toISOString().split('T')[0]);
+        break;
+      case 'thisMonth':
+        setStartDate(new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]);
+        setEndDate(new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]);
+        break;
+      case 'all':
+        setStartDate('');
+        setEndDate('');
+        break;
+    }
   };
 
   return (
@@ -29,6 +103,76 @@ export default function CategoryList() {
         </button>
       </div>
       <div className="card-body">
+        {/* Date Range Filter */}
+        <div className="mb-3 p-3 bg-light rounded">
+          <label className="form-label fw-semibold mb-2">Filter Budgets by Date Range:</label>
+          <div className="d-flex flex-wrap gap-2 align-items-center mb-2">
+            <div className="btn-group btn-group-sm" role="group" aria-label="Quick date presets">
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                onClick={() => setPreset('thisMonth')}
+              >
+                This Month
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                onClick={() => setPreset('thisYear')}
+              >
+                This Year
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                onClick={() => setPreset('lastYear')}
+              >
+                Last Year
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                onClick={() => setPreset('all')}
+              >
+                All Time
+              </button>
+            </div>
+          </div>
+          <div className="d-flex flex-wrap gap-2 align-items-center">
+            <div className="d-flex align-items-center gap-2">
+              <label htmlFor="startDate" className="form-label mb-0 small">
+                From:
+              </label>
+              <input
+                type="date"
+                id="startDate"
+                className="form-control form-control-sm"
+                style={{ width: 'auto' }}
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </div>
+            <div className="d-flex align-items-center gap-2">
+              <label htmlFor="endDate" className="form-label mb-0 small">
+                To:
+              </label>
+              <input
+                type="date"
+                id="endDate"
+                className="form-control form-control-sm"
+                style={{ width: 'auto' }}
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </div>
+            {(startDate || endDate) && (
+              <span className="text-muted small">
+                Showing budgets active between <strong>{startDate || 'beginning'}</strong> and{' '}
+                <strong>{endDate || 'end'}</strong>
+              </span>
+            )}
+          </div>
+        </div>
         {isLoading && (
           <div className="d-flex align-items-center">
             <div className="spinner-border spinner-border-sm me-2" role="status" />
@@ -59,7 +203,7 @@ export default function CategoryList() {
                         </span>
                         {c.budgetAmount && (
                           <span className="text-muted small ms-4">
-                            Budget: ${c.budgetAmount} ({c.budgetPeriod})
+                            Budget: ${c.budgetAmount} ( ${c.budgetStartDate} - ${c.budgetEndDate} )
                           </span>
                         )}
                       </div>
@@ -111,7 +255,7 @@ export default function CategoryList() {
                         </span>
                         {c.budgetAmount && (
                           <span className="text-muted small ms-4">
-                            Budget: ${c.budgetAmount} ({c.budgetPeriod})
+                            Budget: ${c.budgetAmount} ( ${c.budgetStartDate} - ${c.budgetEndDate} )
                           </span>
                         )}
                       </div>

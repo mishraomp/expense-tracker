@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsUUID,
   MaxLength,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -37,4 +38,14 @@ export class CreateExpenseItemDto {
   @IsString({ message: 'Notes must be a string' })
   @MaxLength(500, { message: 'Notes cannot exceed 500 characters' })
   notes?: string;
+
+  @IsOptional()
+  @IsBoolean({ message: 'GST applicability must be a boolean' })
+  @Type(() => Boolean)
+  gstApplicable?: boolean;
+
+  @IsOptional()
+  @IsBoolean({ message: 'PST applicability must be a boolean' })
+  @Type(() => Boolean)
+  pstApplicable?: boolean;
 }

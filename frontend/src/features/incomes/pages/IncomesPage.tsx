@@ -8,7 +8,19 @@ export function IncomesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingIncome, setEditingIncome] = useState<Income | null>(null);
 
-  const { data: incomes, isLoading, error } = useIncomes();
+  const now = new Date();
+  const [selectedYear, setSelectedYear] = useState<number | 'all'>(now.getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState<number | 'all'>('all');
+
+  const query =
+    selectedYear === 'all'
+      ? undefined
+      : {
+          year: selectedYear,
+          ...(selectedMonth === 'all' ? {} : { month: selectedMonth }),
+        };
+
+  const { data: incomes, isLoading, error } = useIncomes(query);
   const createMutation = useCreateIncome();
   const updateMutation = useUpdateIncome();
   const deleteMutation = useDeleteIncome();
@@ -45,13 +57,101 @@ export function IncomesPage() {
 
   const totalIncome = incomes?.reduce((sum, income) => sum + income.amount, 0) || 0;
 
+  const monthLabels = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+
+  const yearOptions = (() => {
+    const current = now.getFullYear();
+    const years: number[] = [];
+    for (let y = current + 1; y >= current - 10; y--) {
+      years.push(y);
+    }
+    return years;
+  })();
+
+  const periodLabel =
+    selectedYear === 'all'
+      ? 'All recorded income'
+      : selectedMonth === 'all'
+        ? `Income for ${selectedYear}`
+        : `Income for ${monthLabels[selectedMonth - 1]} ${selectedYear}`;
+
   return (
     <div className="container-fluid py-4">
-      <div className="d-flex justify-content-between align-items-center mb-4">
+      <div className="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-3">
         <div>
           <h1 className="h3 mb-1">Income Tracking</h1>
-          <p className="text-muted mb-0">Manage your family income sources</p>
+          <p className="text-muted mb-3">Manage your family income sources</p>
+
+          <div className="d-flex align-items-end flex-wrap gap-3">
+            <div>
+              <label className="form-label mb-1" htmlFor="income-year">
+                Year
+              </label>
+              <select
+                id="income-year"
+                className="form-select"
+                value={selectedYear}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === 'all') {
+                    setSelectedYear('all');
+                    setSelectedMonth('all');
+                    return;
+                  }
+                  setSelectedYear(Number(value));
+                }}
+              >
+                <option value="all">All years</option>
+                {yearOptions.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="form-label mb-1" htmlFor="income-month">
+                Month (optional)
+              </label>
+              <select
+                id="income-month"
+                className="form-select"
+                value={selectedMonth}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === 'all') {
+                    setSelectedMonth('all');
+                    return;
+                  }
+                  setSelectedMonth(Number(value));
+                }}
+                disabled={selectedYear === 'all'}
+              >
+                <option value="all">All months</option>
+                {monthLabels.map((label, idx) => (
+                  <option key={label} value={idx + 1}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
+
         <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
           Add Income
         </button>
@@ -68,7 +168,7 @@ export function IncomesPage() {
                 maximumFractionDigits: 2,
               })}
             </h2>
-            <p className="text-muted small mb-0">All recorded income</p>
+            <p className="text-muted small mb-0">{periodLabel}</p>
           </div>
         </div>
       )}

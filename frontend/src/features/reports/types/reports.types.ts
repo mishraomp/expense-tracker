@@ -1,3 +1,5 @@
+import type { Expense } from '@/features/expenses/types/expense.types';
+
 export interface SpendingOverTimePoint {
   bucket: string; // YYYY-MM-DD
   amount: string; // decimal string
@@ -43,6 +45,21 @@ export interface SpendingByCategoryQuery {
   endDate: string;
   categoryId?: string;
   subcategoryId?: string;
+}
+
+export interface SpendingByCategoryTagsQuery {
+  startDate: string;
+  endDate: string;
+  categoryId?: string;
+  tagIds?: string[];
+}
+
+export interface SpendingByCategoryTagsResponse {
+  data: Expense[];
+  summary: {
+    totalAmount: number;
+    count: number;
+  };
 }
 
 export interface SpendingBySubcategoryQuery {

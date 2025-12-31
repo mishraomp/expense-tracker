@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Request } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, Request } from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { CategoriesService } from './categories.service';
 
@@ -8,9 +8,10 @@ export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
   @Get()
-  findAll(@Request() req) {
+  findAll(@Request() req, @Query('targetDate') targetDate?: string) {
     const userId = req.user.sub;
-    return this.categoriesService.findAll(userId);
+    const date = targetDate ? new Date(targetDate) : undefined;
+    return this.categoriesService.findAll(userId, date);
   }
 
   @Post()
@@ -22,6 +23,8 @@ export class CategoriesController {
       icon?: string;
       budgetAmount?: string | number;
       budgetPeriod?: 'monthly' | 'annual';
+      budgetStartDate?: string;
+      budgetEndDate?: string;
     },
     @Request() req,
   ) {
@@ -39,6 +42,8 @@ export class CategoriesController {
       icon?: string;
       budgetAmount?: string | number | null;
       budgetPeriod?: 'monthly' | 'annual' | null;
+      budgetStartDate?: string | null;
+      budgetEndDate?: string | null;
     },
     @Request() req,
   ) {

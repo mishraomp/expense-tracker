@@ -9,6 +9,8 @@ export interface Category {
   icon: string | null;
   budgetAmount?: string | null;
   budgetPeriod?: 'monthly' | 'annual' | null;
+  budgetStartDate?: string | null;
+  budgetEndDate?: string | null;
 }
 
 export interface Expense {
@@ -30,6 +32,13 @@ export interface Expense {
   items?: ExpenseItem[]; // expense line items
   itemCount?: number; // count of items (for list views)
   tags?: TagInfo[]; // associated tags
+  // Tax fields
+  gstApplicable?: boolean;
+  pstApplicable?: boolean;
+  gstAmount?: number;
+  pstAmount?: number;
+  totalTaxAmount?: number;
+  totalWithTax?: number;
 }
 
 export interface ExpenseListResponse {
@@ -57,6 +66,9 @@ export interface CreateExpenseInput {
   numberOfRecurrences?: number;
   items?: CreateExpenseItemInput[]; // expense line items to create with the expense
   tagIds?: string[]; // tag IDs to associate with the expense
+  // Tax fields
+  gstApplicable?: boolean;
+  pstApplicable?: boolean;
 }
 
 export interface UpdateExpenseInput {
@@ -66,6 +78,9 @@ export interface UpdateExpenseInput {
   description?: string;
   subcategoryId?: string | null;
   tagIds?: string[]; // tag IDs to associate with the expense
+  // Tax fields
+  gstApplicable?: boolean;
+  pstApplicable?: boolean;
 }
 
 export interface ExpenseListQuery {

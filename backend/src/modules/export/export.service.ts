@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Parser as Json2CsvParser } from 'json2csv';
 import AdmZip from 'adm-zip';
+import { getCategoryBudgetForDisplay, getSubcategoryBudgetForDisplay } from '../../common/budgets';
 
 @Injectable()
 export class ExportService {
@@ -36,20 +37,36 @@ export class ExportService {
       include: { category: true, subcategory: true },
     });
 
+    // Enrich categories with budget data
+    const categoriesWithBudgets = await Promise.all(
+      categories.map(async (cat) => {
+        const budget = await getCategoryBudgetForDisplay(this.prisma, cat.id);
+        return { ...cat, budgetAmount: budget.budgetAmount, budgetPeriod: budget.budgetPeriod };
+      }),
+    );
+
+    // Enrich subcategories with budget data
+    const subcategoriesWithBudgets = await Promise.all(
+      subcategories.map(async (sub) => {
+        const budget = await getSubcategoryBudgetForDisplay(this.prisma, sub.id);
+        return { ...sub, budgetAmount: budget.budgetAmount, budgetPeriod: budget.budgetPeriod };
+      }),
+    );
+
     // Build CSVs
-    const categoriesCsv = this.toCsv(categories, [
+    const categoriesCsv = this.toCsv(categoriesWithBudgets, [
       { label: 'name', value: (r) => r.name },
       { label: 'type', value: (r) => r.type },
       { label: 'color_code', value: (r) => r.colorCode ?? '' },
       { label: 'icon', value: (r) => r.icon ?? '' },
-      { label: 'budget_amount', value: (r) => (r.budgetAmount ? r.budgetAmount.toString() : '') },
+      { label: 'budget_amount', value: (r) => r.budgetAmount ?? '' },
       { label: 'budget_period', value: (r) => r.budgetPeriod ?? '' },
     ]);
 
-    const subcategoriesCsv = this.toCsv(subcategories, [
+    const subcategoriesCsv = this.toCsv(subcategoriesWithBudgets, [
       { label: 'category', value: (r) => r.category.name },
       { label: 'name', value: (r) => r.name },
-      { label: 'budget_amount', value: (r) => (r.budgetAmount ? r.budgetAmount.toString() : '') },
+      { label: 'budget_amount', value: (r) => r.budgetAmount ?? '' },
       { label: 'budget_period', value: (r) => r.budgetPeriod ?? '' },
     ]);
 

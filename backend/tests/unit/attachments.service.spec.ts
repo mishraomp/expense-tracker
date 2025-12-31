@@ -74,9 +74,7 @@ describe('AttachmentsService', () => {
     expect(result).toBeDefined();
     expect(mockDrive.createUserFolderIfMissing).toHaveBeenCalledWith(expense.userId);
     expect(mockPrisma.attachments.create).toHaveBeenCalled();
-    expect(
-      result.original_filename || result.originalFilename || result.originalFilename,
-    ).toBeDefined();
+    expect(result.original_filename).toBeDefined();
   });
 
   it('listAttachments returns only active', async () => {

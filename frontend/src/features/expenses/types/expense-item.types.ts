@@ -16,6 +16,13 @@ export interface ExpenseItem {
   updatedAt: string;
   category?: Category;
   subcategory?: { id: string; name: string };
+  // Tax fields
+  gstApplicable?: boolean;
+  pstApplicable?: boolean;
+  gstAmount?: number;
+  pstAmount?: number;
+  totalTaxAmount?: number;
+  totalWithTax?: number;
 }
 
 /**
@@ -27,6 +34,9 @@ export interface CreateExpenseItemInput {
   categoryId?: string;
   subcategoryId?: string;
   notes?: string;
+  // Tax fields
+  gstApplicable?: boolean;
+  pstApplicable?: boolean;
 }
 
 /**
@@ -39,6 +49,8 @@ export interface UpdateExpenseItemInput {
   categoryId?: string | null;
   subcategoryId?: string | null;
   notes?: string | null;
+  gstApplicable?: boolean;
+  pstApplicable?: boolean;
 }
 
 /**

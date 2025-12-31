@@ -26,6 +26,12 @@ export class ExpenseResponseDto {
   source: string;
   status: string;
   merchantName: string | null;
+  gstApplicable: boolean;
+  pstApplicable: boolean;
+  gstAmount: number;
+  pstAmount: number;
+  totalTaxAmount: number; // gstAmount + pstAmount
+  totalWithTax: number; // amount + totalTaxAmount
   createdAt: Date;
   updatedAt: Date;
   category?: CategoryResponseDto;
@@ -45,6 +51,10 @@ export class ExpenseResponseDto {
       expenseTags?: (ExpenseTag & { tag: Tag })[];
     },
   ): ExpenseResponseDto {
+    const gstAmount = expense.gstAmount?.toNumber() ?? 0;
+    const pstAmount = expense.pstAmount?.toNumber() ?? 0;
+    const totalTaxAmount = gstAmount + pstAmount;
+
     return {
       id: expense.id,
       userId: expense.userId,
@@ -56,6 +66,12 @@ export class ExpenseResponseDto {
       source: expense.source,
       status: expense.status,
       merchantName: expense.merchantName,
+      gstApplicable: (expense as any).gstApplicable ?? false,
+      pstApplicable: (expense as any).pstApplicable ?? false,
+      gstAmount,
+      pstAmount,
+      totalTaxAmount,
+      totalWithTax: expense.amount.toNumber() + totalTaxAmount,
       createdAt: expense.createdAt,
       updatedAt: expense.updatedAt,
       category: expense.category

@@ -4,6 +4,8 @@ import type {
   SpendingOverTimeResponse,
   SpendingByCategoryQuery,
   CategoryBreakdownItem,
+  SpendingByCategoryTagsQuery,
+  SpendingByCategoryTagsResponse,
   SpendingBySubcategoryQuery,
   SubcategoryBreakdownItem,
   BudgetVsActualQuery,
@@ -35,6 +37,21 @@ export const reportsApi = {
     const { data } = await api.get<CategoryBreakdownItem[]>('/reports/spending-by-category', {
       params: query,
     });
+    return data;
+  },
+
+  getSpendingByCategoryTags: async (
+    query: SpendingByCategoryTagsQuery,
+  ): Promise<SpendingByCategoryTagsResponse> => {
+    const params = new URLSearchParams();
+    params.append('startDate', query.startDate);
+    params.append('endDate', query.endDate);
+    if (query.categoryId) params.append('categoryId', query.categoryId);
+    if (query.tagIds && query.tagIds.length > 0) params.append('tagIds', query.tagIds.join(','));
+
+    const { data } = await api.get<SpendingByCategoryTagsResponse>(
+      `/reports/spending-by-category-tags?${params.toString()}`,
+    );
     return data;
   },
 
@@ -102,6 +119,20 @@ export const reportsApi = {
 
   getIncomeVsExpense: async (query: IncomeVsExpenseQuery): Promise<IncomeVsExpenseResponse> => {
     const { data } = await api.get<IncomeVsExpenseResponse>('/reports/income-vs-expense', {
+      params: query,
+    });
+    return data;
+  },
+
+  /**
+   * Get total budget amount for a date range.
+   * Sums all budgets (category and subcategory level) that overlap with the date range.
+   */
+  getTotalBudget: async (query: {
+    startDate: string;
+    endDate: string;
+  }): Promise<{ totalBudget: number }> => {
+    const { data } = await api.get<{ totalBudget: number }>('/reports/budgets/total', {
       params: query,
     });
     return data;

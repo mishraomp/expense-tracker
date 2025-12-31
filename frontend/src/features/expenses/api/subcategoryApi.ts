@@ -27,6 +27,8 @@ export const useCreateSubcategory = () => {
       categoryId: string;
       budgetAmount?: string;
       budgetPeriod?: 'monthly' | 'annual';
+      budgetStartDate?: string;
+      budgetEndDate?: string;
     }) => {
       const res = await api.post('/subcategories', data);
       return res.data as Subcategory;
@@ -51,6 +53,8 @@ export const useUpdateSubcategory = () => {
         categoryId?: string;
         budgetAmount?: string | null;
         budgetPeriod?: 'monthly' | 'annual' | null;
+        budgetStartDate?: string | null;
+        budgetEndDate?: string | null;
       };
     }) => {
       const res = await api.patch(`/subcategories/${id}`, data);

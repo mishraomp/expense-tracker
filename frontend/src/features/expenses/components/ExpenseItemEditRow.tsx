@@ -31,6 +31,8 @@ export default function ExpenseItemEditRow({
   const [editCategoryId, setEditCategoryId] = useState(item.categoryId || '');
   const [editSubcategoryId, setEditSubcategoryId] = useState(item.subcategoryId || '');
   const [editNotes, setEditNotes] = useState(item.notes || '');
+  const [editGstApplicable, setEditGstApplicable] = useState(item.gstApplicable ?? false);
+  const [editPstApplicable, setEditPstApplicable] = useState(item.pstApplicable ?? false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const updateMutation = useUpdateExpenseItem();
@@ -52,6 +54,8 @@ export default function ExpenseItemEditRow({
         categoryId: editCategoryId || null,
         subcategoryId: editSubcategoryId || null,
         notes: editNotes.trim() || null,
+        gstApplicable: editGstApplicable,
+        pstApplicable: editPstApplicable,
       },
     });
     setIsEditing(false);
@@ -70,6 +74,8 @@ export default function ExpenseItemEditRow({
     setEditCategoryId(item.categoryId || '');
     setEditSubcategoryId(item.subcategoryId || '');
     setEditNotes(item.notes || '');
+    setEditGstApplicable(item.gstApplicable ?? false);
+    setEditPstApplicable(item.pstApplicable ?? false);
     setIsEditing(false);
   };
 
@@ -84,7 +90,7 @@ export default function ExpenseItemEditRow({
   if (showDeleteConfirm) {
     return (
       <tr className="table-warning">
-        <td colSpan={5} className="p-2">
+        <td colSpan={7} className="p-2">
           <div className="d-flex align-items-center justify-content-between">
             <span>Delete "{item.name}"?</span>
             <div className="btn-group btn-group-sm">
@@ -170,6 +176,40 @@ export default function ExpenseItemEditRow({
             placeholder="Parent"
           />
         </td>
+        <td className="text-center">
+          <div className="d-flex justify-content-center gap-2">
+            <div className="form-check form-check-inline mb-0" title="GST 5%">
+              <input
+                className="form-check-input"
+                type="checkbox"
+                checked={editGstApplicable}
+                onChange={(e) => setEditGstApplicable(e.target.checked)}
+                disabled={isLoading}
+              />
+              <label className="form-check-label small">GST</label>
+            </div>
+            <div className="form-check form-check-inline mb-0" title="PST 7%">
+              <input
+                className="form-check-input"
+                type="checkbox"
+                checked={editPstApplicable}
+                onChange={(e) => setEditPstApplicable(e.target.checked)}
+                disabled={isLoading}
+              />
+              <label className="form-check-label small">PST</label>
+            </div>
+          </div>
+        </td>
+        <td className="text-end">
+          <strong>
+            $
+            {(
+              parsedEditAmount +
+              (editGstApplicable ? parsedEditAmount * 0.05 : 0) +
+              (editPstApplicable ? parsedEditAmount * 0.07 : 0)
+            ).toFixed(2)}
+          </strong>
+        </td>
         <td className="text-end">
           <div className="btn-group btn-group-sm">
             <button
@@ -196,6 +236,16 @@ export default function ExpenseItemEditRow({
     );
   }
 
+  // Calculate total with tax for display
+  const gstAmount = item.gstApplicable ? item.amount * 0.05 : 0;
+  const pstAmount = item.pstApplicable ? item.amount * 0.07 : 0;
+  const totalWithTax = item.amount + gstAmount + pstAmount;
+
+  const getSubcategoryName = (subcategoryId: string | null) => {
+    if (!subcategoryId) return '-';
+    return item.subcategory?.name || '-';
+  };
+
   // Display mode
   return (
     <tr className="cursor-pointer" onClick={() => setIsEditing(true)} title="Click to edit">
@@ -204,8 +254,14 @@ export default function ExpenseItemEditRow({
       </td>
       <td className="text-end">${item.amount.toFixed(2)}</td>
       <td className="text-truncate cell-truncate-sm">{getCategoryName(item.categoryId)}</td>
-      <td className="text-truncate text-muted small cell-truncate-md" title={item.notes || ''}>
-        {item.notes || '-'}
+      <td className="text-truncate cell-truncate-sm">{getSubcategoryName(item.subcategoryId)}</td>
+      <td className="text-center small">
+        {item.gstApplicable && <span className="badge bg-secondary me-1">GST</span>}
+        {item.pstApplicable && <span className="badge bg-secondary">PST</span>}
+        {!item.gstApplicable && !item.pstApplicable && <span className="text-muted">-</span>}
+      </td>
+      <td className="text-end">
+        <strong>${totalWithTax.toFixed(2)}</strong>
       </td>
       <td className="text-end">
         <button

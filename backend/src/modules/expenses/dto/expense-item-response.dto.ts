@@ -13,6 +13,12 @@ export class ExpenseItemResponseDto {
   categoryId: string | null;
   subcategoryId: string | null;
   notes: string | null;
+  gstApplicable: boolean;
+  pstApplicable: boolean;
+  gstAmount: number;
+  pstAmount: number;
+  totalTaxAmount: number; // gstAmount + pstAmount
+  totalWithTax: number; // amount + totalTaxAmount
   createdAt: Date;
   updatedAt: Date;
   category?: CategoryResponseDto;
@@ -26,6 +32,10 @@ export class ExpenseItemResponseDto {
   static fromEntity(
     item: ExpenseItem & { category?: Category | null; subcategory?: Subcategory | null },
   ): ExpenseItemResponseDto {
+    const gstAmount = item.gstAmount?.toNumber() ?? 0;
+    const pstAmount = item.pstAmount?.toNumber() ?? 0;
+    const totalTaxAmount = gstAmount + pstAmount;
+
     return {
       id: item.id,
       expenseId: item.expenseId,
@@ -34,6 +44,12 @@ export class ExpenseItemResponseDto {
       categoryId: item.categoryId,
       subcategoryId: item.subcategoryId,
       notes: item.notes,
+      gstApplicable: (item as any).gstApplicable ?? false,
+      pstApplicable: (item as any).pstApplicable ?? false,
+      gstAmount,
+      pstAmount,
+      totalTaxAmount,
+      totalWithTax: item.amount.toNumber() + totalTaxAmount,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
       category: item.category

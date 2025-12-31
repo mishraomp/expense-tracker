@@ -17,12 +17,14 @@ model User {
   createdAt            DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   keycloakSub          String?               @unique(map: "idx_users_keycloak_sub_unique") @map("keycloak_sub") @db.VarChar(255)
+  budgets              Budget[]
   categories           Category[]            @relation("UserCustomCategories")
   expenses             Expense[]
   financialConnections FinancialConnection[]
   importSessions       ImportSession[]
   incomes              Income[]
   tags                 Tag[]
+  tax_defaults         tax_defaults[]
   defaultCategory      Category?             @relation("UserDefaultCategory", fields: [defaultCategoryId], references: [id], onUpdate: NoAction, map: "fk_users_default_category")
 
   @@map("users")
@@ -38,8 +40,7 @@ model Category {
   createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt        DateTime?     @map("deleted_at") @db.Timestamptz(6)
-  budgetAmount     Decimal?      @map("budget_amount") @db.Decimal(12, 2)
-  budgetPeriod     BudgetPeriod? @map("budget_period")
+  budgets          Budget[]
   user             User?         @relation("UserCustomCategories", fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   expenseItems     ExpenseItem[]
   expenses         Expense[]
@@ -57,8 +58,7 @@ model Subcategory {
   categoryId   String        @map("category_id") @db.Uuid
   createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  budgetAmount Decimal?      @map("budget_amount") @db.Decimal(12, 2)
-  budgetPeriod BudgetPeriod? @map("budget_period")
+  budgets      Budget[]
   expenseItems ExpenseItem[]
   expenses     Expense[]
   category     Category      @relation("CategorySubcategories", fields: [categoryId], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -86,6 +86,10 @@ model Expense {
   updatedAt       DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt       DateTime?            @map("deleted_at") @db.Timestamptz(6)
   subcategoryId   String?              @map("subcategory_id") @db.Uuid
+  gstApplicable   Boolean              @default(false) @map("gst_applicable")
+  pstApplicable   Boolean              @default(false) @map("pst_applicable")
+  gstAmount       Decimal              @default(0) @map("gst_amount") @db.Decimal(12, 2)
+  pstAmount       Decimal              @default(0) @map("pst_amount") @db.Decimal(12, 2)
   items           ExpenseItem[]
   expenseTags     ExpenseTag[]
   category        Category             @relation(fields: [categoryId], references: [id], onUpdate: NoAction)
@@ -103,6 +107,9 @@ model Expense {
   @@index([userId, date(sort: Desc)], map: "idx_expenses_user_date")
   @@index([userId], map: "idx_expenses_user_id")
   @@index([userId, subcategoryId], map: "idx_expenses_user_subcategory")
+  @@index([gstApplicable], map: "idx_expenses_gst_applicable")
+  @@index([pstApplicable], map: "idx_expenses_pst_applicable")
+  @@index([gstApplicable, pstApplicable], map: "idx_expenses_tax_composite")
   @@map("expenses")
 }
 
@@ -120,6 +127,10 @@ model ExpenseItem {
   createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt       DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  gstApplicable   Boolean          @default(false) @map("gst_applicable")
+  pstApplicable   Boolean          @default(false) @map("pst_applicable")
+  gstAmount       Decimal          @default(0) @map("gst_amount") @db.Decimal(12, 2)
+  pstAmount       Decimal          @default(0) @map("pst_amount") @db.Decimal(12, 2)
   expenseItemTags ExpenseItemTag[]
   category        Category?        @relation(fields: [categoryId], references: [id], onUpdate: NoAction)
   expense         Expense          @relation(fields: [expenseId], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -128,6 +139,9 @@ model ExpenseItem {
   @@index([expenseId], map: "idx_expense_items_expense_id")
   @@index([categoryId], map: "idx_expense_items_category_id")
   @@index([subcategoryId], map: "idx_expense_items_subcategory_id")
+  @@index([gstApplicable], map: "idx_expense_items_gst_applicable")
+  @@index([pstApplicable], map: "idx_expense_items_pst_applicable")
+  @@index([gstApplicable, pstApplicable, expenseId], map: "idx_expense_items_tax_composite")
   @@map("expense_items")
 }
 
@@ -303,6 +317,41 @@ model Tag {
   @@unique([userId, name], map: "uq_tags_user_name")
   @@index([userId], map: "idx_tags_user_id")
   @@map("tags")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model tax_defaults {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  gst_rate   Decimal  @default(5.00) @db.Decimal(5, 2)
+  pst_rate   Decimal  @default(7.00) @db.Decimal(5, 2)
+  is_default Boolean  @default(true)
+  region     String?  @db.VarChar(10)
+  user_id    String?  @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamp(6)
+  updated_at DateTime @default(now()) @db.Timestamp(6)
+  users      User?    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Budget {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  amount        Decimal      @db.Decimal(12, 2)
+  startDate     DateTime     @map("start_date") @db.Date
+  endDate       DateTime     @map("end_date") @db.Date
+  categoryId    String?      @map("category_id") @db.Uuid
+  subcategoryId String?      @map("subcategory_id") @db.Uuid
+  userId        String?      @map("user_id") @db.Uuid
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  category      Category?    @relation(fields: [categoryId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_budgets_category")
+  subcategory   Subcategory? @relation(fields: [subcategoryId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_budgets_subcategory")
+  user          User?        @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_budgets_user")
+
+  @@index([categoryId, startDate, endDate, updatedAt(sort: Desc)], map: "idx_budgets_category_lookup")
+  @@index([subcategoryId, startDate, endDate, updatedAt(sort: Desc)], map: "idx_budgets_subcategory_lookup")
+  @@index([userId], map: "idx_budgets_user_id")
+  @@map("budgets")
 }
 
 enum CategoryType {

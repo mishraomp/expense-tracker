@@ -3,6 +3,7 @@ import { ApiBearerAuth } from '@nestjs/swagger';
 import { ReportsService } from './reports.service';
 import { SpendingOverTimeQueryDto } from './dto/spending-over-time.dto';
 import { SpendingByCategoryQueryDto } from './dto/spending-by-category.dto';
+import { SpendingByCategoryTagsQueryDto } from './dto/spending-by-category-tags.dto';
 import { BudgetVsActualQueryDto } from './dto/budget-vs-actual.dto';
 import { IncomeVsExpenseQueryDto } from './dto/income-vs-expense.dto';
 
@@ -21,6 +22,12 @@ export class ReportsController {
   getSpendingByCategory(@Query() query: SpendingByCategoryQueryDto, @Request() req) {
     const userId = req.user.sub;
     return this.reportsService.getSpendingByCategory(userId, query);
+  }
+
+  @Get('spending-by-category-tags')
+  getSpendingByCategoryTags(@Query() query: SpendingByCategoryTagsQueryDto, @Request() req) {
+    const userId = req.user.sub;
+    return this.reportsService.getSpendingByCategoryTags(userId, query);
   }
 
   @Get('spending-by-subcategory')
@@ -68,6 +75,20 @@ export class ReportsController {
   getIncomeVsExpense(@Query() query: IncomeVsExpenseQueryDto, @Request() req) {
     const userId = req.user.sub;
     return this.reportsService.getIncomeVsExpense(userId, query);
+  }
+
+  /**
+   * GET /reports/budgets/total
+   * Get total budget amount for a date range
+   */
+  @Get('budgets/total')
+  getTotalBudget(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @Request() req,
+  ) {
+    const userId = req.user.sub;
+    return this.reportsService.getTotalBudget(userId, { startDate, endDate });
   }
 
   /**
