@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import {
@@ -9,6 +9,10 @@ import {
   SpendingByCategoryQueryDto,
   CategoryBreakdownItemDto,
 } from './dto/spending-by-category.dto';
+import {
+  SpendingByCategoryTagsQueryDto,
+  SpendingByCategoryTagsResponseDto,
+} from './dto/spending-by-category-tags.dto';
 import { BudgetVsActualPointDto, BudgetVsActualQueryDto } from './dto/budget-vs-actual.dto';
 import {
   IncomeVsExpenseQueryDto,
@@ -160,6 +164,179 @@ export class ReportsService {
       colorCode: r.color_code,
       amount: r.amount,
     }));
+  }
+
+  async getSpendingByCategoryTags(
+    userId: string,
+    q: SpendingByCategoryTagsQueryDto,
+  ): Promise<SpendingByCategoryTagsResponseDto> {
+    const { startDate, endDate, categoryId, tagIds } = q;
+
+    if (!categoryId && (!tagIds || tagIds.length === 0)) {
+      throw new BadRequestException('Either categoryId or tagIds must be provided');
+    }
+
+    const baseFilters: Prisma.Sql[] = [
+      Prisma.sql`e."user_id" = ${userId}::uuid`,
+      Prisma.sql`e."deleted_at" IS NULL`,
+      Prisma.sql`e."date" BETWEEN ${startDate}::date AND ${endDate}::date`,
+    ];
+
+    const matchFilters: Prisma.Sql[] = [];
+
+    if (categoryId) {
+      matchFilters.push(
+        Prisma.sql`(
+          e."category_id" = ${categoryId}::uuid
+          OR EXISTS (
+            SELECT 1
+            FROM "expense_items" ei
+            WHERE ei."expense_id" = e."id"
+              AND ei."deleted_at" IS NULL
+              AND COALESCE(ei."category_id", e."category_id") = ${categoryId}::uuid
+          )
+        )`,
+      );
+    }
+
+    if (tagIds && tagIds.length > 0) {
+      const tagIdArraySql = Prisma.sql`ARRAY[${Prisma.join(tagIds.map((id) => Prisma.sql`${id}::uuid`))}]`;
+      matchFilters.push(
+        Prisma.sql`(
+          EXISTS (
+            SELECT 1
+            FROM "expense_tags" et
+            JOIN "tags" t ON t."id" = et."tag_id" AND t."user_id" = ${userId}::uuid
+            WHERE et."expense_id" = e."id"
+              AND et."tag_id" = ANY(${tagIdArraySql})
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM "expense_items" ei
+            JOIN "expense_item_tags" eit ON eit."expense_item_id" = ei."id"
+            JOIN "tags" t ON t."id" = eit."tag_id" AND t."user_id" = ${userId}::uuid
+            WHERE ei."expense_id" = e."id"
+              AND ei."deleted_at" IS NULL
+              AND eit."tag_id" = ANY(${tagIdArraySql})
+          )
+        )`,
+      );
+    }
+
+    const where = Prisma.sql`
+      WHERE ${Prisma.join(baseFilters, ' AND ')}
+        AND (${Prisma.join(matchFilters, ' OR ')})
+    `;
+
+    const rows: Array<{
+      id: string;
+      user_id: string;
+      category_id: string;
+      subcategory_id: string | null;
+      amount: string;
+      date: string;
+      description: string | null;
+      source: string;
+      status: string;
+      merchant_name: string | null;
+      created_at: Date;
+      updated_at: Date;
+      cat_id: string;
+      cat_name: string;
+      cat_type: string;
+      cat_color_code: string | null;
+      cat_icon: string | null;
+      sub_id: string | null;
+      sub_name: string | null;
+      tags: any;
+    }> = await this.prisma.$queryRaw(
+      Prisma.sql`
+        WITH matched AS (
+          SELECT DISTINCT ON (e."id")
+            e."id",
+            e."date",
+            e."created_at"
+          FROM "expenses" e
+          ${where}
+          ORDER BY e."id", e."date" DESC, e."created_at" DESC
+        )
+        SELECT
+          e."id" AS id,
+          e."user_id" AS user_id,
+          e."category_id" AS category_id,
+          e."subcategory_id" AS subcategory_id,
+          e."amount"::text AS amount,
+          e."date"::text AS date,
+          e."description" AS description,
+          e."source"::text AS source,
+          e."status"::text AS status,
+          e."merchant_name" AS merchant_name,
+          e."created_at" AS created_at,
+          e."updated_at" AS updated_at,
+          c."id" AS cat_id,
+          c."name" AS cat_name,
+          c."type"::text AS cat_type,
+          c."color_code" AS cat_color_code,
+          c."icon" AS cat_icon,
+          sc."id" AS sub_id,
+          sc."name" AS sub_name,
+          COALESCE(tag_agg.tags, '[]'::jsonb) AS tags
+        FROM matched m
+        JOIN "expenses" e ON e."id" = m."id"
+        JOIN "categories" c ON c."id" = e."category_id"
+        LEFT JOIN "subcategories" sc ON sc."id" = e."subcategory_id"
+        LEFT JOIN LATERAL (
+          SELECT jsonb_agg(DISTINCT jsonb_build_object(
+            'id', t."id",
+            'name', t."name",
+            'colorCode', t."color_code"
+          )) AS tags
+          FROM (
+            SELECT et."tag_id" AS tag_id
+            FROM "expense_tags" et
+            WHERE et."expense_id" = e."id"
+            UNION
+            SELECT eit."tag_id" AS tag_id
+            FROM "expense_items" ei
+            JOIN "expense_item_tags" eit ON eit."expense_item_id" = ei."id"
+            WHERE ei."expense_id" = e."id" AND ei."deleted_at" IS NULL
+          ) tag_ids
+          JOIN "tags" t ON t."id" = tag_ids.tag_id AND t."user_id" = ${userId}::uuid
+        ) tag_agg ON TRUE
+        ORDER BY e."date" DESC, e."created_at" DESC
+      `,
+    );
+
+    const data = rows.map((r) => ({
+      id: r.id,
+      userId: r.user_id,
+      categoryId: r.category_id,
+      subcategoryId: r.subcategory_id,
+      amount: Number(r.amount),
+      date: r.date,
+      description: r.description,
+      source: r.source,
+      status: r.status,
+      merchantName: r.merchant_name,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+      category: {
+        id: r.cat_id,
+        name: r.cat_name,
+        type: r.cat_type,
+        colorCode: r.cat_color_code,
+        icon: r.cat_icon,
+      },
+      subcategory: r.sub_id && r.sub_name ? { id: r.sub_id, name: r.sub_name } : undefined,
+      tags: Array.isArray(r.tags) ? r.tags : [],
+    }));
+
+    const totalAmount = data.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+
+    return {
+      data,
+      summary: { totalAmount, count: data.length },
+    };
   }
 
   async getSpendingBySubcategory(

@@ -92,6 +92,52 @@ describe('ReportsService', () => {
     expect(res[0].amount).toBe('75');
   });
 
+  it('getSpendingByCategoryTags returns unique expense rows (union) with summary', async () => {
+    const mockPrisma = {
+      $queryRaw: vi.fn().mockResolvedValueOnce([
+        {
+          id: 'exp-1',
+          user_id: 'user-1',
+          category_id: 'cat-1',
+          subcategory_id: null,
+          amount: '25.00',
+          date: '2025-01-15',
+          description: 'Coffee',
+          source: 'manual',
+          status: 'confirmed',
+          merchant_name: null,
+          created_at: new Date('2025-01-15T01:00:00Z'),
+          updated_at: new Date('2025-01-15T01:00:00Z'),
+          cat_id: 'cat-1',
+          cat_name: 'Food',
+          cat_type: 'custom',
+          cat_color_code: null,
+          cat_icon: null,
+          sub_id: null,
+          sub_name: null,
+          tags: [
+            { id: 'tag-1', name: 'Bills', colorCode: '#00ff00' },
+            { id: 'tag-2', name: 'Coffee', colorCode: null },
+          ],
+        },
+      ]),
+    } as any;
+
+    const svc = new (ReportsService as any)(mockPrisma);
+    const res = await svc.getSpendingByCategoryTags('user-1', {
+      startDate: '2025-01-01',
+      endDate: '2025-01-31',
+      categoryId: 'cat-1',
+    } as any);
+
+    expect(res.data).toHaveLength(1);
+    expect(res.data[0].id).toBe('exp-1');
+    expect(res.data[0].categoryId).toBe('cat-1');
+    expect(res.data[0].tags).toHaveLength(2);
+    expect(res.summary.count).toBe(1);
+    expect(res.summary.totalAmount).toBe(25);
+  });
+
   it('getBudgetVsActual returns budget points per month', async () => {
     const monthlyBudget = [{ monthly_budget: '100.00' }];
     const rows = [{ bucket: new Date('2025-01-01'), actual: '10' }];

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateIncomeDto } from './dto/create-income.dto';
 import { UpdateIncomeDto } from './dto/update-income.dto';
@@ -121,6 +121,26 @@ export class IncomesService {
       userId,
       deletedAt: null,
     };
+
+    if (query.month !== undefined && query.year === undefined) {
+      throw new BadRequestException('month requires year');
+    }
+
+    if (query.year !== undefined) {
+      const year = query.year;
+      const month = query.month;
+
+      const start =
+        month !== undefined
+          ? new Date(Date.UTC(year, month - 1, 1))
+          : new Date(Date.UTC(year, 0, 1));
+      const endExclusive =
+        month !== undefined
+          ? new Date(Date.UTC(year, month, 1))
+          : new Date(Date.UTC(year + 1, 0, 1));
+
+      where.date = { ...where.date, gte: start, lt: endExclusive };
+    }
 
     if (query.startDate) {
       where.date = { ...where.date, gte: new Date(query.startDate) };
