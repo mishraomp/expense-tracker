@@ -16,6 +16,13 @@ describe('CategoriesService', () => {
         create: vi.fn(async ({ data }: any) => ({ id: 'c2', ...data })),
         update: vi.fn(async ({ where, data }: any) => ({ id: where.id, ...data })),
       },
+      budget: {
+        findFirst: vi.fn(async () => null),
+        findMany: vi.fn(async () => []),
+        create: vi.fn(async ({ data }: any) => ({ id: 'b1', ...data })),
+        update: vi.fn(),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
     };
 
     svc = new CategoriesService(mockPrisma as any);

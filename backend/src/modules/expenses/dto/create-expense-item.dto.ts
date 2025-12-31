@@ -49,4 +49,3 @@ export class CreateExpenseItemDto {
   @Type(() => Boolean)
   pstApplicable?: boolean;
 }
-

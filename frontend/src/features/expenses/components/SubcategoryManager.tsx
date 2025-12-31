@@ -12,6 +12,25 @@ interface SubcategoryManagerProps {
   category: Category;
 }
 
+/**
+ * Returns default budget date range (Jan 1 - Dec 31 of current year)
+ */
+function getDefaultBudgetDates(): { start: string; end: string } {
+  const year = new Date().getFullYear();
+  return {
+    start: `${year}-01-01`,
+    end: `${year}-12-31`,
+  };
+}
+
+/**
+ * Checks if the budget has a custom date range (not wide legacy range)
+ */
+function hasCustomDateRange(startDate?: string | null, endDate?: string | null): boolean {
+  if (!startDate || !endDate) return false;
+  return !(startDate.startsWith('1970-') && endDate.startsWith('9999-'));
+}
+
 export default function SubcategoryManager({ category }: SubcategoryManagerProps) {
   const { data: subcategories, isLoading } = useSubcategories(category.id);
   const create = useCreateSubcategory();
@@ -20,28 +39,72 @@ export default function SubcategoryManager({ category }: SubcategoryManagerProps
   const [name, setName] = useState('');
   const [budgetAmount, setBudgetAmount] = useState('');
   const [budgetPeriod, setBudgetPeriod] = useState<'monthly' | 'annual'>('monthly');
+  const [budgetStartDate, setBudgetStartDate] = useState('');
+  const [budgetEndDate, setBudgetEndDate] = useState('');
+  const [useDateRange, setUseDateRange] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const [editingBudgetAmount, setEditingBudgetAmount] = useState('');
   const [editingBudgetPeriod, setEditingBudgetPeriod] = useState<'monthly' | 'annual'>('monthly');
+  const [editingBudgetStartDate, setEditingBudgetStartDate] = useState('');
+  const [editingBudgetEndDate, setEditingBudgetEndDate] = useState('');
+  const [editingUseDateRange, setEditingUseDateRange] = useState(false);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
     try {
-      await create.mutateAsync({
+      const payload: {
+        name: string;
+        categoryId: string;
+        budgetAmount?: string;
+        budgetPeriod?: 'monthly' | 'annual';
+        budgetStartDate?: string;
+        budgetEndDate?: string;
+      } = {
         name: name.trim(),
         categoryId: category.id,
-        budgetAmount: budgetAmount || undefined,
-        budgetPeriod: budgetAmount ? budgetPeriod : undefined,
-      });
+      };
+
+      if (budgetAmount) {
+        payload.budgetAmount = budgetAmount;
+        if (useDateRange && budgetStartDate && budgetEndDate) {
+          payload.budgetStartDate = budgetStartDate;
+          payload.budgetEndDate = budgetEndDate;
+        } else {
+          payload.budgetPeriod = budgetPeriod;
+        }
+      }
+
+      await create.mutateAsync(payload);
       setName('');
       setBudgetAmount('');
       setBudgetPeriod('monthly');
+      setBudgetStartDate('');
+      setBudgetEndDate('');
+      setUseDateRange(false);
       setIsAdding(false);
     } catch (err) {
       console.error('Failed to create subcategory:', err);
+    }
+  };
+
+  const handleUseDateRangeToggle = (checked: boolean) => {
+    setUseDateRange(checked);
+    if (checked && !budgetStartDate && !budgetEndDate) {
+      const defaults = getDefaultBudgetDates();
+      setBudgetStartDate(defaults.start);
+      setBudgetEndDate(defaults.end);
+    }
+  };
+
+  const handleEditingUseDateRangeToggle = (checked: boolean) => {
+    setEditingUseDateRange(checked);
+    if (checked && !editingBudgetStartDate && !editingBudgetEndDate) {
+      const defaults = getDefaultBudgetDates();
+      setEditingBudgetStartDate(defaults.start);
+      setEditingBudgetEndDate(defaults.end);
     }
   };
 
@@ -50,11 +113,23 @@ export default function SubcategoryManager({ category }: SubcategoryManagerProps
     currentName: string,
     currentBudget?: string | null,
     currentPeriod?: string | null,
+    currentStartDate?: string | null,
+    currentEndDate?: string | null,
   ) => {
     setEditingId(id);
     setEditingName(currentName);
     setEditingBudgetAmount(currentBudget || '');
     setEditingBudgetPeriod((currentPeriod as 'monthly' | 'annual') || 'monthly');
+
+    const hasCustom = hasCustomDateRange(currentStartDate, currentEndDate);
+    setEditingUseDateRange(hasCustom);
+    if (hasCustom) {
+      setEditingBudgetStartDate(currentStartDate || '');
+      setEditingBudgetEndDate(currentEndDate || '');
+    } else {
+      setEditingBudgetStartDate('');
+      setEditingBudgetEndDate('');
+    }
   };
 
   const handleSaveEdit = async () => {
@@ -62,18 +137,40 @@ export default function SubcategoryManager({ category }: SubcategoryManagerProps
     const trimmed = editingName.trim();
     if (!trimmed) return;
     try {
-      await upd.mutateAsync({
-        id: editingId,
-        data: {
-          name: trimmed,
-          budgetAmount: editingBudgetAmount || null,
-          budgetPeriod: editingBudgetAmount ? editingBudgetPeriod : null,
-        },
-      });
+      const payload: {
+        name: string;
+        budgetAmount?: string | null;
+        budgetPeriod?: 'monthly' | 'annual' | null;
+        budgetStartDate?: string | null;
+        budgetEndDate?: string | null;
+      } = { name: trimmed };
+
+      if (!editingBudgetAmount) {
+        payload.budgetAmount = null;
+        payload.budgetPeriod = null;
+        payload.budgetStartDate = null;
+        payload.budgetEndDate = null;
+      } else {
+        payload.budgetAmount = editingBudgetAmount;
+        if (editingUseDateRange && editingBudgetStartDate && editingBudgetEndDate) {
+          payload.budgetStartDate = editingBudgetStartDate;
+          payload.budgetEndDate = editingBudgetEndDate;
+          payload.budgetPeriod = null;
+        } else {
+          payload.budgetPeriod = editingBudgetPeriod;
+          payload.budgetStartDate = null;
+          payload.budgetEndDate = null;
+        }
+      }
+
+      await upd.mutateAsync({ id: editingId, data: payload });
       setEditingId(null);
       setEditingName('');
       setEditingBudgetAmount('');
       setEditingBudgetPeriod('monthly');
+      setEditingBudgetStartDate('');
+      setEditingBudgetEndDate('');
+      setEditingUseDateRange(false);
     } catch (err) {
       console.error('Failed to rename subcategory:', err);
     }
@@ -119,7 +216,7 @@ export default function SubcategoryManager({ category }: SubcategoryManagerProps
               {create.isPending ? 'Adding...' : 'Add'}
             </button>
           </div>
-          <div className="row g-2">
+          <div className="row g-2 mb-2">
             <div className="col-6">
               <input
                 type="number"
@@ -130,7 +227,7 @@ export default function SubcategoryManager({ category }: SubcategoryManagerProps
                 onChange={(e) => setBudgetAmount(e.target.value)}
               />
             </div>
-            {budgetAmount && (
+            {budgetAmount && !useDateRange && (
               <div className="col-6">
                 <select
                   className="form-select form-select-sm"
@@ -143,6 +240,42 @@ export default function SubcategoryManager({ category }: SubcategoryManagerProps
               </div>
             )}
           </div>
+          {budgetAmount && (
+            <>
+              <div className="form-check form-check-sm mb-2">
+                <input
+                  type="checkbox"
+                  className="form-check-input"
+                  id="newSubcatUseDateRange"
+                  checked={useDateRange}
+                  onChange={(e) => handleUseDateRangeToggle(e.target.checked)}
+                />
+                <label className="form-check-label small" htmlFor="newSubcatUseDateRange">
+                  Custom date range
+                </label>
+              </div>
+              {useDateRange && (
+                <div className="row g-2">
+                  <div className="col-6">
+                    <input
+                      type="date"
+                      className="form-control form-control-sm"
+                      value={budgetStartDate}
+                      onChange={(e) => setBudgetStartDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="col-6">
+                    <input
+                      type="date"
+                      className="form-control form-control-sm"
+                      value={budgetEndDate}
+                      onChange={(e) => setBudgetEndDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+            </>
+          )}
           {create.isError && (
             <div className="text-danger small mt-1">Failed to create subcategory</div>
           )}
@@ -177,7 +310,7 @@ export default function SubcategoryManager({ category }: SubcategoryManagerProps
                       }}
                       autoFocus
                     />
-                    <div className="row g-1">
+                    <div className="row g-1 mb-1">
                       <div className="col-6">
                         <input
                           type="number"
@@ -188,7 +321,7 @@ export default function SubcategoryManager({ category }: SubcategoryManagerProps
                           onChange={(e) => setEditingBudgetAmount(e.target.value)}
                         />
                       </div>
-                      {editingBudgetAmount && (
+                      {editingBudgetAmount && !editingUseDateRange && (
                         <div className="col-6">
                           <select
                             className="form-select form-select-sm"
@@ -203,13 +336,55 @@ export default function SubcategoryManager({ category }: SubcategoryManagerProps
                         </div>
                       )}
                     </div>
+                    {editingBudgetAmount && (
+                      <>
+                        <div className="form-check form-check-sm mb-1">
+                          <input
+                            type="checkbox"
+                            className="form-check-input"
+                            id={`editSubcatUseDateRange-${sub.id}`}
+                            checked={editingUseDateRange}
+                            onChange={(e) => handleEditingUseDateRangeToggle(e.target.checked)}
+                          />
+                          <label
+                            className="form-check-label small"
+                            htmlFor={`editSubcatUseDateRange-${sub.id}`}
+                          >
+                            Custom dates
+                          </label>
+                        </div>
+                        {editingUseDateRange && (
+                          <div className="row g-1">
+                            <div className="col-6">
+                              <input
+                                type="date"
+                                className="form-control form-control-sm"
+                                value={editingBudgetStartDate}
+                                onChange={(e) => setEditingBudgetStartDate(e.target.value)}
+                              />
+                            </div>
+                            <div className="col-6">
+                              <input
+                                type="date"
+                                className="form-control form-control-sm"
+                                value={editingBudgetEndDate}
+                                onChange={(e) => setEditingBudgetEndDate(e.target.value)}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 ) : (
                   <div className="d-flex flex-column">
                     <span className="small">{sub.name}</span>
                     {sub.budgetAmount && (
                       <span className="text-muted text-xs">
-                        Budget: ${sub.budgetAmount} ({sub.budgetPeriod})
+                        Budget: ${sub.budgetAmount}
+                        {sub.budgetPeriod && ` (${sub.budgetPeriod})`}
+                        {hasCustomDateRange(sub.budgetStartDate, sub.budgetEndDate) &&
+                          ` ${sub.budgetStartDate} - ${sub.budgetEndDate}`}
                       </span>
                     )}
                   </div>
@@ -237,7 +412,14 @@ export default function SubcategoryManager({ category }: SubcategoryManagerProps
                     <button
                       className="btn btn-outline-secondary"
                       onClick={() =>
-                        handleStartEdit(sub.id, sub.name, sub.budgetAmount, sub.budgetPeriod)
+                        handleStartEdit(
+                          sub.id,
+                          sub.name,
+                          sub.budgetAmount,
+                          sub.budgetPeriod,
+                          sub.budgetStartDate,
+                          sub.budgetEndDate,
+                        )
                       }
                     >
                       Rename

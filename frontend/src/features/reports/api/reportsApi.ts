@@ -125,6 +125,20 @@ export const reportsApi = {
   },
 
   /**
+   * Get total budget amount for a date range.
+   * Sums all budgets (category and subcategory level) that overlap with the date range.
+   */
+  getTotalBudget: async (query: {
+    startDate: string;
+    endDate: string;
+  }): Promise<{ totalBudget: number }> => {
+    const { data } = await api.get<{ totalBudget: number }>('/reports/budgets/total', {
+      params: query,
+    });
+    return data;
+  },
+
+  /**
    * Get top expense items aggregated by name.
    * Returns items sorted by total amount descending.
    */

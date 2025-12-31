@@ -1,4 +1,5 @@
 import {
+  IsDateString,
   IsEnum,
   IsNotEmpty,
   IsOptional,
@@ -27,6 +28,14 @@ export class CreateSubcategoryDto {
   @IsOptional()
   @IsEnum(['monthly', 'annual'] as any)
   budgetPeriod?: BudgetPeriod;
+
+  @IsOptional()
+  @IsDateString()
+  budgetStartDate?: string;
+
+  @IsOptional()
+  @IsDateString()
+  budgetEndDate?: string;
 }
 
 export class UpdateSubcategoryDto {
@@ -46,6 +55,14 @@ export class UpdateSubcategoryDto {
   @IsOptional()
   @IsEnum(['monthly', 'annual'] as any)
   budgetPeriod?: BudgetPeriod | null;
+
+  @IsOptional()
+  @IsDateString()
+  budgetStartDate?: string | null;
+
+  @IsOptional()
+  @IsDateString()
+  budgetEndDate?: string | null;
 }
 
 export class SubcategoryQueryDto {

@@ -6,12 +6,26 @@ interface Props {
   onClose: () => void;
 }
 
+/**
+ * Returns default budget date range (Jan 1 - Dec 31 of current year)
+ */
+function getDefaultBudgetDates(): { start: string; end: string } {
+  const year = new Date().getFullYear();
+  return {
+    start: `${year}-01-01`,
+    end: `${year}-12-31`,
+  };
+}
+
 export default function CreateCategoryModal({ isOpen, onClose }: Props) {
   const [name, setName] = useState('');
   const [colorCode, setColorCode] = useState('');
   const [icon, setIcon] = useState('');
   const [budgetAmount, setBudgetAmount] = useState('');
   const [budgetPeriod, setBudgetPeriod] = useState<'monthly' | 'annual'>('monthly');
+  const [budgetStartDate, setBudgetStartDate] = useState('');
+  const [budgetEndDate, setBudgetEndDate] = useState('');
+  const [useDateRange, setUseDateRange] = useState(false);
   const createCategory = useCreateCategory();
 
   useEffect(() => {
@@ -23,20 +37,50 @@ export default function CreateCategoryModal({ isOpen, onClose }: Props) {
         setIcon('');
         setBudgetAmount('');
         setBudgetPeriod('monthly');
+        setBudgetStartDate('');
+        setBudgetEndDate('');
+        setUseDateRange(false);
       }, 0);
     }
   }, [isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createCategory.mutateAsync({
+    const payload: {
+      name: string;
+      colorCode?: string;
+      icon?: string;
+      budgetAmount?: number;
+      budgetPeriod?: 'monthly' | 'annual';
+      budgetStartDate?: string;
+      budgetEndDate?: string;
+    } = {
       name,
       colorCode: colorCode || undefined,
       icon: icon || undefined,
-      budgetAmount: budgetAmount ? parseFloat(budgetAmount) : undefined,
-      budgetPeriod: budgetAmount ? budgetPeriod : undefined,
-    });
+    };
+
+    if (budgetAmount) {
+      payload.budgetAmount = parseFloat(budgetAmount);
+      if (useDateRange && budgetStartDate && budgetEndDate) {
+        payload.budgetStartDate = budgetStartDate;
+        payload.budgetEndDate = budgetEndDate;
+      } else {
+        payload.budgetPeriod = budgetPeriod;
+      }
+    }
+
+    await createCategory.mutateAsync(payload);
     onClose();
+  };
+
+  const handleUseDateRangeToggle = (checked: boolean) => {
+    setUseDateRange(checked);
+    if (checked && !budgetStartDate && !budgetEndDate) {
+      const defaults = getDefaultBudgetDates();
+      setBudgetStartDate(defaults.start);
+      setBudgetEndDate(defaults.end);
+    }
   };
 
   if (!isOpen) return null;
@@ -109,20 +153,63 @@ export default function CreateCategoryModal({ isOpen, onClose }: Props) {
                 />
               </div>
               {budgetAmount && (
-                <div className="mb-3">
-                  <label htmlFor="catBudgetPeriod" className="form-label">
-                    Budget Period
-                  </label>
-                  <select
-                    id="catBudgetPeriod"
-                    className="form-select"
-                    value={budgetPeriod}
-                    onChange={(e) => setBudgetPeriod(e.target.value as 'monthly' | 'annual')}
-                  >
-                    <option value="monthly">Monthly</option>
-                    <option value="annual">Annual</option>
-                  </select>
-                </div>
+                <>
+                  <div className="mb-3 form-check">
+                    <input
+                      type="checkbox"
+                      className="form-check-input"
+                      id="useDateRange"
+                      checked={useDateRange}
+                      onChange={(e) => handleUseDateRangeToggle(e.target.checked)}
+                    />
+                    <label className="form-check-label" htmlFor="useDateRange">
+                      Use custom date range
+                    </label>
+                  </div>
+                  {useDateRange ? (
+                    <div className="row g-2 mb-3">
+                      <div className="col-6">
+                        <label htmlFor="catBudgetStart" className="form-label">
+                          Start Date
+                        </label>
+                        <input
+                          id="catBudgetStart"
+                          type="date"
+                          className="form-control"
+                          value={budgetStartDate}
+                          onChange={(e) => setBudgetStartDate(e.target.value)}
+                        />
+                      </div>
+                      <div className="col-6">
+                        <label htmlFor="catBudgetEnd" className="form-label">
+                          End Date
+                        </label>
+                        <input
+                          id="catBudgetEnd"
+                          type="date"
+                          className="form-control"
+                          value={budgetEndDate}
+                          onChange={(e) => setBudgetEndDate(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mb-3">
+                      <label htmlFor="catBudgetPeriod" className="form-label">
+                        Budget Period
+                      </label>
+                      <select
+                        id="catBudgetPeriod"
+                        className="form-select"
+                        value={budgetPeriod}
+                        onChange={(e) => setBudgetPeriod(e.target.value as 'monthly' | 'annual')}
+                      >
+                        <option value="monthly">Monthly</option>
+                        <option value="annual">Annual</option>
+                      </select>
+                    </div>
+                  )}
+                </>
               )}
             </div>
             <div className="modal-footer">

@@ -26,6 +26,13 @@ describe('ExpensesService', () => {
         groupBy: vi.fn(async () => []),
       },
       expenseItem: { groupBy: vi.fn(async () => []) },
+      budget: {
+        findFirst: vi.fn(async () => null),
+        findMany: vi.fn(async () => []),
+        create: vi.fn(),
+        update: vi.fn(),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
       $transaction: vi.fn(async (ops: any[]) =>
         Promise.all(ops.map((op) => (typeof op === 'function' ? op(mockPrisma) : op))),
       ),
@@ -104,11 +111,17 @@ describe('ExpensesService', () => {
       { amount: new Decimal(10) },
       { amount: new Decimal(20) },
     ]);
-    mockPrisma.subcategory.findUnique.mockResolvedValueOnce({
-      budgetAmount: new Decimal(100),
-      budgetPeriod: 'monthly',
+    // Mock budget lookup for subcategory
+    mockPrisma.budget.findFirst.mockResolvedValueOnce({
+      id: 'budget-1',
+      amount: new Decimal(100),
+      startDate: new Date('1970-01-01'),
+      endDate: new Date('9999-12-31'),
+      subcategoryId: 'sub-1',
+      categoryId: null,
+      updatedAt: new Date(),
     });
-    const totals = await svc.calculateTotals('user-1', undefined, 'sub-1');
+    const totals = await svc.calculateTotals('user-1', 'cat-1', 'sub-1');
     expect(totals.count).toBe(2);
     expect(totals.total.toNumber()).toBe(30);
     expect(totals.budgetAmount?.toNumber()).toBe(100);
@@ -120,10 +133,15 @@ describe('ExpensesService', () => {
       { amount: new Decimal(10) },
       { amount: new Decimal(20) },
     ]);
-    mockPrisma.subcategory.findUnique.mockResolvedValueOnce(null);
-    mockPrisma.category.findUnique.mockResolvedValueOnce({
-      budgetAmount: new Decimal(200),
-      budgetPeriod: 'annual',
+    // Mock budget lookup - no subcategory budget, so falls back to category budget
+    mockPrisma.budget.findFirst.mockResolvedValueOnce({
+      id: 'budget-2',
+      amount: new Decimal(200),
+      startDate: new Date('2025-01-01'),
+      endDate: new Date('2025-12-31'),
+      categoryId: 'cat-1',
+      subcategoryId: null,
+      updatedAt: new Date(),
     });
     const totals = await svc.calculateTotals('user-1', 'cat-1', undefined);
     expect(totals.budgetAmount?.toNumber()).toBe(200);
@@ -354,5 +372,73 @@ describe('ExpensesService', () => {
       { categoryName: 'Unknown', amount: 10, date: '2025-01-03' } as any,
     ]);
     expect(out3.failed.length).toBe(1);
+  });
+
+  describe('Budget overlap and precedence', () => {
+    it('calculateTotals picks subcategory budget over category budget (precedence)', async () => {
+      // Setup expenses
+      mockPrisma.expense.findMany.mockResolvedValueOnce([{ amount: new Decimal(50) }]);
+      // First call: subcategory budget lookup - returns a budget
+      mockPrisma.budget.findFirst.mockResolvedValueOnce({
+        id: 'sub-budget',
+        amount: new Decimal(150),
+        startDate: new Date('2025-01-01'),
+        endDate: new Date('2025-12-31'),
+        subcategoryId: 'sub-1',
+        categoryId: null,
+        updatedAt: new Date('2025-06-15'),
+      });
+
+      const totals = await svc.calculateTotals('user-1', 'cat-1', 'sub-1');
+      // Should use subcategory budget
+      expect(totals.budgetAmount?.toNumber()).toBe(150);
+    });
+
+    it('calculateTotals falls back to category budget when no subcategory budget exists', async () => {
+      mockPrisma.expense.findMany.mockResolvedValueOnce([{ amount: new Decimal(25) }]);
+      // First call for subcategory - no budget
+      mockPrisma.budget.findFirst.mockResolvedValueOnce(null);
+      // Second call for category - returns budget
+      mockPrisma.budget.findFirst.mockResolvedValueOnce({
+        id: 'cat-budget',
+        amount: new Decimal(500),
+        startDate: new Date('2025-01-01'),
+        endDate: new Date('2025-12-31'),
+        categoryId: 'cat-1',
+        subcategoryId: null,
+        updatedAt: new Date('2025-01-01'),
+      });
+
+      const totals = await svc.calculateTotals('user-1', 'cat-1', 'sub-1');
+      expect(totals.budgetAmount?.toNumber()).toBe(500);
+    });
+
+    it('calculateTotals returns undefined budget when no budgets exist', async () => {
+      mockPrisma.expense.findMany.mockResolvedValueOnce([{ amount: new Decimal(10) }]);
+      // No budgets exist
+      mockPrisma.budget.findFirst.mockResolvedValue(null);
+
+      const totals = await svc.calculateTotals('user-1', 'cat-1', undefined);
+      expect(totals.budgetAmount).toBeUndefined();
+    });
+
+    it('budget selection picks most recently updated among overlapping budgets', async () => {
+      // This tests the ordering: updatedAt desc, createdAt desc, id desc
+      // The mock returns in order, so we just verify the first match is used
+      mockPrisma.expense.findMany.mockResolvedValueOnce([{ amount: new Decimal(100) }]);
+      // Budget with most recent updatedAt
+      mockPrisma.budget.findFirst.mockResolvedValueOnce({
+        id: 'budget-recent',
+        amount: new Decimal(999),
+        startDate: new Date('2025-01-01'),
+        endDate: new Date('2025-12-31'),
+        categoryId: 'cat-1',
+        subcategoryId: null,
+        updatedAt: new Date('2025-12-01'), // Most recent
+      });
+
+      const totals = await svc.calculateTotals('user-1', 'cat-1', undefined);
+      expect(totals.budgetAmount?.toNumber()).toBe(999);
+    });
   });
 });

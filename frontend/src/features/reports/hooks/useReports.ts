@@ -97,6 +97,18 @@ export const useIncomeVsExpense = (query: IncomeVsExpenseQuery) => {
 };
 
 /**
+ * Hook to fetch total budget for a date range.
+ */
+export const useTotalBudget = (query: { startDate: string; endDate: string }) => {
+  return useQuery({
+    queryKey: ['reports', 'budgets', 'total', query],
+    queryFn: () => reportsApi.getTotalBudget(query),
+    staleTime: 5 * 60 * 1000,
+    enabled: !!query.startDate && !!query.endDate,
+  });
+};
+
+/**
  * Hook to fetch top expense items aggregated by name.
  */
 export const useTopExpenseItems = (query: TopExpenseItemsQuery) => {

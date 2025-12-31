@@ -1,6 +1,6 @@
 import { toYYYYMMDD } from '@/services/date';
 import { useMemo, useState, useCallback } from 'react';
-import { useIncomeVsExpense } from '../hooks/useReports';
+import { useIncomeVsExpense, useTotalBudget } from '../hooks/useReports';
 import type { SubcategorySpendingByMonth } from '../types/reports.types';
 import { IncomeVsExpenseChart } from './IncomeVsExpenseChart';
 import SubcategoryBreakdownModal from './SubcategoryBreakdownModal';
@@ -14,10 +14,21 @@ export const IncomeVsExpenseReport = () => {
   // Compute the start and end dates here so the report can't be filtered by arbitrary date,
   // only by year.
   const startDate = toYYYYMMDD(new Date(selectedYear, 0, 1));
-  const endDate =
-    selectedYear === currentYear ? toYYYYMMDD(today) : toYYYYMMDD(new Date(selectedYear, 11, 31));
+  const endDate = toYYYYMMDD(new Date(selectedYear, 11, 31));
 
   const query = useIncomeVsExpense({ startDate, endDate });
+
+  // Fetch total budget for the selected year directly from the budgets table
+  const budgetQuery = useTotalBudget({ startDate, endDate });
+
+  // Get the total budget value
+  const totalBudget = budgetQuery.data?.totalBudget ?? 0;
+
+  // Probable Savings = Income - Expenses - Total Budget
+  const probableSavings = useMemo(() => {
+    if (!query.data) return 0;
+    return query.data.totalIncome - query.data.totalExpenses - totalBudget;
+  }, [query.data, totalBudget]);
 
   // Keep hooks at top-level so the hook order never changes between renders
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
@@ -118,10 +129,10 @@ export const IncomeVsExpenseReport = () => {
         </div>
         <div className="col-6 col-md-3 col-lg-3">
           <div className="card p-3">
-            <div className="text-muted">Net Savings</div>
+            <div className="text-muted">Total Budget ({selectedYear})</div>
             <h5>
               $
-              {query.data.netSavings.toLocaleString(undefined, {
+              {totalBudget.toLocaleString(undefined, {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}
@@ -130,13 +141,13 @@ export const IncomeVsExpenseReport = () => {
         </div>
         <div className="col-6 col-md-3 col-lg-3">
           <div className="card p-3">
-            <div className="text-muted">Savings Rate</div>
+            <div className="text-muted">Probable Savings</div>
             <h5>
-              {query.data.savingsRate.toLocaleString(undefined, {
+              $
+              {probableSavings.toLocaleString(undefined, {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}
-              %
             </h5>
           </div>
         </div>

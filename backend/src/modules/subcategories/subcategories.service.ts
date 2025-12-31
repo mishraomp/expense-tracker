@@ -7,13 +7,28 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateSubcategoryDto, UpdateSubcategoryDto } from './dto';
 import { Subcategory } from './subcategory.entity';
-import { Prisma } from '@prisma/client';
+import {
+  getSubcategoryBudgetForDisplay,
+  upsertSubcategoryBudget,
+  removeSubcategoryBudgets,
+  computeBudgetDateRange,
+} from '../../common/budgets';
+
+/**
+ * Extended subcategory with derived budget fields for API compatibility
+ */
+export interface SubcategoryWithBudget extends Subcategory {
+  budgetAmount: string | null;
+  budgetPeriod: 'monthly' | 'annual' | null;
+  budgetStartDate: string | null;
+  budgetEndDate: string | null;
+}
 
 @Injectable()
 export class SubcategoriesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateSubcategoryDto): Promise<Subcategory> {
+  async create(dto: CreateSubcategoryDto): Promise<SubcategoryWithBudget> {
     // Ensure parent category exists
     const category = await this.prisma.category.findUnique({ where: { id: dto.categoryId } });
     if (!category) {
@@ -21,17 +36,47 @@ export class SubcategoriesService {
     }
 
     try {
-      return await this.prisma.subcategory.create({
+      const subcategory = await this.prisma.subcategory.create({
         data: {
           name: dto.name.trim(),
           categoryId: dto.categoryId,
-          budgetAmount:
-            dto.budgetAmount !== undefined
-              ? new Prisma.Decimal(dto.budgetAmount as any)
-              : undefined,
-          budgetPeriod: dto.budgetPeriod,
         },
       });
+
+      // Create budget if provided
+      let budgetAmount: string | null = null;
+      let budgetPeriod: 'monthly' | 'annual' | null = null;
+      let budgetStartDate: string | null = null;
+      let budgetEndDate: string | null = null;
+
+      if (dto.budgetAmount !== undefined) {
+        const { startDate, endDate } = computeBudgetDateRange(
+          dto.budgetPeriod,
+          dto.budgetStartDate,
+          dto.budgetEndDate,
+        );
+        await upsertSubcategoryBudget(
+          this.prisma,
+          subcategory.id,
+          category.userId,
+          dto.budgetAmount,
+          startDate,
+          endDate,
+        );
+        const budget = await getSubcategoryBudgetForDisplay(this.prisma, subcategory.id);
+        budgetAmount = budget.budgetAmount;
+        budgetPeriod = budget.budgetPeriod;
+        budgetStartDate = budget.budgetStartDate;
+        budgetEndDate = budget.budgetEndDate;
+      }
+
+      return {
+        ...subcategory,
+        budgetAmount,
+        budgetPeriod,
+        budgetStartDate,
+        budgetEndDate,
+      };
     } catch (e: any) {
       if (e.code === 'P2002') {
         throw new ConflictException('Subcategory name must be unique within the category');
@@ -46,51 +91,113 @@ export class SubcategoriesService {
     }
   }
 
-  async findAll(categoryId?: string): Promise<Subcategory[]> {
-    return this.prisma.subcategory.findMany({
+  async findAll(categoryId?: string): Promise<SubcategoryWithBudget[]> {
+    const subcategories = await this.prisma.subcategory.findMany({
       where: categoryId ? { categoryId } : undefined,
       orderBy: { name: 'asc' },
     });
+
+    // Enrich with budget data
+    const result: SubcategoryWithBudget[] = [];
+    for (const sub of subcategories) {
+      const budget = await getSubcategoryBudgetForDisplay(this.prisma, sub.id);
+      result.push({
+        ...sub,
+        budgetAmount: budget.budgetAmount,
+        budgetPeriod: budget.budgetPeriod,
+        budgetStartDate: budget.budgetStartDate,
+        budgetEndDate: budget.budgetEndDate,
+      });
+    }
+
+    return result;
   }
 
-  async findOne(id: string): Promise<Subcategory> {
+  async findOne(id: string): Promise<SubcategoryWithBudget> {
     const subcategory = await this.prisma.subcategory.findUnique({ where: { id } });
     if (!subcategory) throw new NotFoundException('Subcategory not found');
-    return subcategory;
+
+    const budget = await getSubcategoryBudgetForDisplay(this.prisma, id);
+    return {
+      ...subcategory,
+      budgetAmount: budget.budgetAmount,
+      budgetPeriod: budget.budgetPeriod,
+      budgetStartDate: budget.budgetStartDate,
+      budgetEndDate: budget.budgetEndDate,
+    };
   }
 
   async findOneWithCategory(
     id: string,
-  ): Promise<Subcategory & { category?: { id: string; name: string } }> {
+  ): Promise<SubcategoryWithBudget & { category?: { id: string; name: string } }> {
     const subcategory = await this.prisma.subcategory.findUnique({
       where: { id },
       include: { category: true },
     });
     if (!subcategory) throw new NotFoundException('Subcategory not found');
-    return subcategory as any;
+
+    const budget = await getSubcategoryBudgetForDisplay(this.prisma, id);
+    return {
+      ...subcategory,
+      budgetAmount: budget.budgetAmount,
+      budgetPeriod: budget.budgetPeriod,
+      budgetStartDate: budget.budgetStartDate,
+      budgetEndDate: budget.budgetEndDate,
+    } as any;
   }
 
-  async update(id: string, dto: UpdateSubcategoryDto): Promise<Subcategory> {
+  async update(id: string, dto: UpdateSubcategoryDto): Promise<SubcategoryWithBudget> {
+    // Get existing subcategory to find its category's user
+    const existing = await this.prisma.subcategory.findUnique({
+      where: { id },
+      include: { category: true },
+    });
+    if (!existing) {
+      throw new NotFoundException('Subcategory not found');
+    }
+
     // If moving to a different category, ensure target exists
     if (dto.categoryId) {
       const category = await this.prisma.category.findUnique({ where: { id: dto.categoryId } });
       if (!category) throw new BadRequestException('Target category does not exist');
     }
+
     try {
-      return await this.prisma.subcategory.update({
+      const subcategory = await this.prisma.subcategory.update({
         where: { id },
         data: {
           ...(dto.name !== undefined ? { name: dto.name?.trim() } : {}),
           ...(dto.categoryId !== undefined ? { categoryId: dto.categoryId } : {}),
-          budgetAmount:
-            dto.budgetAmount === null
-              ? null
-              : dto.budgetAmount !== undefined
-                ? new Prisma.Decimal(dto.budgetAmount as any)
-                : undefined,
-          budgetPeriod: dto.budgetPeriod === null ? null : (dto.budgetPeriod ?? undefined),
         },
       });
+
+      // Handle budget update
+      if (dto.budgetAmount === null) {
+        await removeSubcategoryBudgets(this.prisma, id);
+      } else if (dto.budgetAmount !== undefined) {
+        const { startDate, endDate } = computeBudgetDateRange(
+          dto.budgetPeriod,
+          dto.budgetStartDate,
+          dto.budgetEndDate,
+        );
+        await upsertSubcategoryBudget(
+          this.prisma,
+          id,
+          existing.category.userId,
+          dto.budgetAmount,
+          startDate,
+          endDate,
+        );
+      }
+
+      const budget = await getSubcategoryBudgetForDisplay(this.prisma, id);
+      return {
+        ...subcategory,
+        budgetAmount: budget.budgetAmount,
+        budgetPeriod: budget.budgetPeriod,
+        budgetStartDate: budget.budgetStartDate,
+        budgetEndDate: budget.budgetEndDate,
+      };
     } catch (e: any) {
       if (e.code === 'P2002') {
         throw new ConflictException('Subcategory name must be unique within the category');

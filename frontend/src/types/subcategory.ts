@@ -4,6 +4,8 @@ export interface Subcategory {
   categoryId: string;
   budgetAmount?: string | null;
   budgetPeriod?: 'monthly' | 'annual' | null;
+  budgetStartDate?: string | null;
+  budgetEndDate?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
