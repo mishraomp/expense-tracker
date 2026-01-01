@@ -1,6 +1,6 @@
 import { toYYYYMMDD } from '@/services/date';
 import { useMemo, useState, useCallback } from 'react';
-import { useIncomeVsExpense, useTotalBudget } from '../hooks/useReports';
+import { useIncomeVsExpense, useTotalBudget, useBudgetedExpenses } from '../hooks/useReports';
 import type { SubcategorySpendingByMonth } from '../types/reports.types';
 import { IncomeVsExpenseChart } from './IncomeVsExpenseChart';
 import SubcategoryBreakdownModal from './SubcategoryBreakdownModal';
@@ -21,14 +21,25 @@ export const IncomeVsExpenseReport = () => {
   // Fetch total budget for the selected year directly from the budgets table
   const budgetQuery = useTotalBudget({ startDate, endDate });
 
+  // Fetch expenses against budgeted categories for the selected year
+  const budgetedExpensesQuery = useBudgetedExpenses({ startDate, endDate });
+
   // Get the total budget value
   const totalBudget = budgetQuery.data?.totalBudget ?? 0;
 
-  // Probable Savings = Income - Expenses - Total Budget
+  // Get the total expenses against budgeted categories
+  const budgetedExpenses = budgetedExpensesQuery.data?.budgetedExpenses ?? 0;
+
+  // Remaining Budget = Total Budget - Expenses against budgeted categories
+  const remainingBudget = useMemo(() => {
+    return totalBudget - budgetedExpenses;
+  }, [totalBudget, budgetedExpenses]);
+
+  // Probable Savings = Income - Total Expenses - Remaining Budget
   const probableSavings = useMemo(() => {
     if (!query.data) return 0;
-    return query.data.totalIncome - query.data.totalExpenses - totalBudget;
-  }, [query.data, totalBudget]);
+    return query.data.totalIncome - query.data.totalExpenses - remainingBudget;
+  }, [query.data, remainingBudget]);
 
   // Keep hooks at top-level so the hook order never changes between renders
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
@@ -101,12 +112,12 @@ export const IncomeVsExpenseReport = () => {
         </div>
       </div>
 
-      <div className="row mb-2 ">
-        {/* Make summary cards responsive: two columns on small screens, four on medium */}
-        <div className="col-6 col-md-3 col-lg-2">
-          <div className="card p-3">
-            <div className="text-muted">Total Income ({selectedYear})</div>
-            <h5>
+      <div className="row mb-2 g-2">
+        {/* Make summary cards responsive: 5 cards across on large screens */}
+        <div className="col-6 col-md-4 col-lg">
+          <div className="card p-3 h-100">
+            <div className="text-muted small">Total Income ({selectedYear})</div>
+            <h5 className="mb-0">
               $
               {query.data.totalIncome.toLocaleString(undefined, {
                 minimumFractionDigits: 2,
@@ -115,10 +126,10 @@ export const IncomeVsExpenseReport = () => {
             </h5>
           </div>
         </div>
-        <div className="col-6 col-md-3 col-lg-2">
-          <div className="card p-3">
-            <div className="text-muted">Total Expenses ({selectedYear})</div>
-            <h5>
+        <div className="col-6 col-md-4 col-lg">
+          <div className="card p-3 h-100">
+            <div className="text-muted small">Total Expenses ({selectedYear})</div>
+            <h5 className="mb-0">
               $
               {query.data.totalExpenses.toLocaleString(undefined, {
                 minimumFractionDigits: 2,
@@ -127,10 +138,10 @@ export const IncomeVsExpenseReport = () => {
             </h5>
           </div>
         </div>
-        <div className="col-6 col-md-3 col-lg-3">
-          <div className="card p-3">
-            <div className="text-muted">Total Budget ({selectedYear})</div>
-            <h5>
+        <div className="col-6 col-md-4 col-lg">
+          <div className="card p-3 h-100">
+            <div className="text-muted small">Total Budget ({selectedYear})</div>
+            <h5 className="mb-0">
               $
               {totalBudget.toLocaleString(undefined, {
                 minimumFractionDigits: 2,
@@ -139,10 +150,22 @@ export const IncomeVsExpenseReport = () => {
             </h5>
           </div>
         </div>
-        <div className="col-6 col-md-3 col-lg-3">
-          <div className="card p-3">
-            <div className="text-muted">Probable Savings</div>
-            <h5>
+        <div className="col-6 col-md-6 col-lg">
+          <div className="card p-3 h-100">
+            <div className="text-muted small">Remaining Budget</div>
+            <h5 className={`mb-0 ${remainingBudget < 0 ? 'text-danger' : ''}`}>
+              $
+              {remainingBudget.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </h5>
+          </div>
+        </div>
+        <div className="col-12 col-md-6 col-lg">
+          <div className="card p-3 h-100">
+            <div className="text-muted small">Probable Savings</div>
+            <h5 className={`mb-0 ${probableSavings < 0 ? 'text-danger' : 'text-success'}`}>
               $
               {probableSavings.toLocaleString(undefined, {
                 minimumFractionDigits: 2,

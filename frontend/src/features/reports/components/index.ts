@@ -6,3 +6,4 @@ export { CategoryBudgetReportTable } from './CategoryBudgetReportTable';
 export { SubcategoryBudgetReportTable } from './SubcategoryBudgetReportTable';
 export { IncomeVsExpenseChart } from './IncomeVsExpenseChart';
 export { IncomeVsExpenseReport } from './IncomeVsExpenseReport';
+export { DateRangeFilter } from './DateRangeFilter';

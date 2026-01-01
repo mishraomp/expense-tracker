@@ -8,6 +8,7 @@ import { SpendingOverTimeChart } from '../components/SpendingOverTimeChart';
 import { CategoryBreakdownChart } from '../components/CategoryBreakdownChart';
 import { SubcategoryBreakdownChart } from '../components/SubcategoryBreakdownChart';
 import { SubcategoryLineItemsModal } from '../components/SubcategoryLineItemsModal';
+import { DateRangeFilter } from '../components/DateRangeFilter';
 import {
   useSpendingOverTime,
   useSpendingByCategory,
@@ -52,13 +53,6 @@ export const ReportsPage = () => {
   const [endDate, setEndDate] = useState(initialEnd);
   const [interval, setInterval] = useState<'day' | 'week' | 'month'>('month');
 
-  const handleClearFilters = () => {
-    const today = new Date();
-    const start = new Date(today.getFullYear(), 0, 1);
-    setStartDate(toYYYYMMDD(start));
-    setEndDate(toYYYYMMDD(today));
-  };
-
   // Update date range when report type changes: reset to Jan 1 -> Today
   const handleReportChange = (reportType: ReportType) => {
     setSelectedReport(reportType);
@@ -97,9 +91,13 @@ export const ReportsPage = () => {
     enabled: selectedReport === 'spending-by-subcategory',
   });
   const catBudgetReport = useCategoryBudgetReport({
+    startDate,
+    endDate,
     enabled: selectedReport === 'category-budget',
   });
   const subcatBudgetReport = useSubcategoryBudgetReport({
+    startDate,
+    endDate,
     enabled: selectedReport === 'subcategory-budget',
   });
 
@@ -148,35 +146,18 @@ export const ReportsPage = () => {
           {(selectedReport === 'spending-over-time' ||
             selectedReport === 'spending-by-category' ||
             selectedReport === 'spending-by-category-tags' ||
-            selectedReport === 'spending-by-subcategory') && (
+            selectedReport === 'spending-by-subcategory' ||
+            selectedReport === 'category-budget' ||
+            selectedReport === 'subcategory-budget') && (
             <>
-              <h5 className="card-title">Date Range & Options</h5>
-              <div className="row g-3">
-                <div className="col-md-4">
-                  <label htmlFor="startDate" className="form-label">
-                    Start Date
-                  </label>
-                  <input
-                    type="date"
-                    id="startDate"
-                    className="form-control"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                  />
-                </div>
-                <div className="col-md-4">
-                  <label htmlFor="endDate" className="form-label">
-                    End Date
-                  </label>
-                  <input
-                    type="date"
-                    id="endDate"
-                    className="form-control"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                  />
-                </div>
-                {selectedReport === 'spending-over-time' && (
+              <DateRangeFilter
+                startDate={startDate}
+                endDate={endDate}
+                onStartDateChange={setStartDate}
+                onEndDateChange={setEndDate}
+              />
+              {selectedReport === 'spending-over-time' && (
+                <div className="row g-3 mb-3">
                   <div className="col-md-4">
                     <label htmlFor="interval" className="form-label">
                       Time Interval
@@ -192,17 +173,8 @@ export const ReportsPage = () => {
                       <option value="month">Monthly</option>
                     </select>
                   </div>
-                )}
-                <div className="col-12 d-flex justify-content-end">
-                  <button
-                    type="button"
-                    className="btn btn-outline-secondary"
-                    onClick={handleClearFilters}
-                  >
-                    Clear
-                  </button>
                 </div>
-              </div>
+              )}
             </>
           )}
         </div>

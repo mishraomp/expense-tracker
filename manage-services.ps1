@@ -89,6 +89,19 @@ function BuildApp($name, $prefixPath, [switch]$Production) {
   return $true
 }
 
+function CopyFrontendToDist($frontendDistPath, $backendPath) {
+  # Copy frontend build to dist/public after backend build
+  $distPublic = Join-Path $backendPath 'dist' | Join-Path -ChildPath 'public'
+  
+  if (Test-Path $distPublic) {
+    Remove-Item -Path $distPublic -Recurse -Force
+  }
+  
+  Write-Log "Copying frontend build to backend/dist/public..."
+  Copy-Item -Path $frontendDistPath -Destination $distPublic -Recurse
+  Write-Log "Frontend assets copied to backend/dist/public"
+}
+
 function LoadEnvFile($envFilePath) {
   # Load .env file and return hashtable of environment variables
   $envVars = @{}
@@ -138,11 +151,10 @@ function StartBackendProduction($envFilePath) {
     [System.Environment]::SetEnvironmentVariable($key, $envVars[$key], [System.EnvironmentVariableTarget]::Process)
   }
 
-  $mainJs = Join-Path $backendPath 'dist'
-  $mainJs = Join-Path $mainJs 'main.js'
+  $mainJs = Join-Path (Join-Path $backendPath 'dist') 'src' | Join-Path -ChildPath 'main.js'
   
   if (-not (Test-Path $mainJs)) {
-    Write-Log "ERROR: Backend dist/main.js not found. Run build first."
+    Write-Log "ERROR: Backend dist/src/main.js not found. Run build first."
     return $null
   }
 
@@ -194,8 +206,7 @@ function KillNodeFallback($search) {
 }
 
 if ($Action -eq 'stop') {
-  # STOP order should be: metabase -> keycloak -> pg-backup-cron -> postgres -> stop node processes
-  StopService metabase
+  # STOP order should be: keycloak -> pg-backup-cron -> postgres -> stop node processes
   StopService keycloak
   StopService postgres
 
@@ -243,7 +254,6 @@ if ($Action -eq 'stop') {
   
   StartServiceIfNotRunning keycloak
   
-  StartServiceIfNotRunning metabase
   StartServiceIfNotRunning pg-backup
 
   # Build frontend first
@@ -253,24 +263,24 @@ if ($Action -eq 'stop') {
     exit 1
   }
 
-  # Copy frontend build to backend/public for production serving
-  $frontendDist = Join-Path $frontendPath 'dist'
   $backendPath = Join-Path $root 'backend'
-  $backendPublic = Join-Path $backendPath 'public'
-  
-  if (Test-Path $backendPublic) {
-    Remove-Item -Path $backendPublic -Recurse -Force
+
+  # Clean backend dist before build
+  $backendDist = Join-Path $backendPath 'dist'
+  if (Test-Path $backendDist) {
+    Remove-Item -Path $backendDist -Recurse -Force
+    Write-Log "Cleaned backend dist folder"
   }
-  
-  Write-Log "Copying frontend build to backend/public..."
-  Copy-Item -Path $frontendDist -Destination $backendPublic -Recurse
-  Write-Log "Frontend assets copied to backend/public"
 
   # Build backend with production optimizations (no source maps)
   if (-not (BuildApp 'backend' $backendPath -Production)) {
     Write-Log "ERROR: Backend build failed. Aborting."
     exit 1
   }
+
+  # Copy frontend build to dist/public after backend build
+  $frontendDist = Join-Path $frontendPath 'dist'
+  CopyFrontendToDist $frontendDist $backendPath
 
   # Start backend in production mode with .env
   $envFile = Join-Path $backendPath '.env'
