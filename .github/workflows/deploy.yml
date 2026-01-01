@@ -33,9 +33,21 @@ env:
   TF_LOG: ERROR
   AZURE_REGION: Canada Central
 jobs:
+  builds:
+    if: ${{ github.event.pull_request.head.repo.fork == false }}
+    concurrency:
+      # Cancel in progress for PR open and close
+      group: builds-${{ github.event.number || 'latest' }}
+      cancel-in-progress: true
+    uses: ./.github/workflows/.builds.yml
+    with:
+      tags: |
+        ${{ github.event.number || 'manual' }}
+        manual-${{ github.run_number }}
+        latest
   deploy:
     runs-on: ubuntu-24.04
-    #needs: [builds]
+    needs: [builds]
     if: ${{ github.event.pull_request.head.repo.fork == false }}
     environment: ${{ inputs.app_env || 'dev' }}
     steps:
@@ -54,9 +66,9 @@ jobs:
         id: image
         shell: bash
         run: |
-          BACKEND_IMAGE="ghcr.io/${{ github.repository }}/backend:latest"
-          FLYWAY_IMAGE="ghcr.io/${{ github.repository }}/migrations:latest"
-          KEYCLOAK_IMAGE="ghcr.io/${{ github.repository }}/keycloak:latest"
+          BACKEND_IMAGE="ghcr.io/${{ github.repository }}/backend:manual-${{ github.run_number }}"
+          FLYWAY_IMAGE="ghcr.io/${{ github.repository }}/migrations:manual-${{ github.run_number }}"
+          KEYCLOAK_IMAGE="ghcr.io/${{ github.repository }}/keycloak:manual-${{ github.run_number }}"
           echo "backend-image=$BACKEND_IMAGE" >> $GITHUB_OUTPUT
           echo "flyway-image=$FLYWAY_IMAGE" >> $GITHUB_OUTPUT
           echo "keycloak-image=$KEYCLOAK_IMAGE" >> $GITHUB_OUTPUT
