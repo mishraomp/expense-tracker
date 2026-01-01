@@ -1,0 +1,40 @@
+name: Build Containers
+
+on:
+  workflow_call:
+    inputs:
+      tags:
+        description: "Tags to apply to the built containers multiline, separated by newlines"
+        required: true
+        type: string
+permissions:
+  id-token: write # This is required for requesting the JWT
+  contents: write # This is required for actions/checkout
+  packages: write
+  pull-requests: write
+jobs:
+  # https://github.com/bcgov/action-builder-ghcr
+  builds:
+    name: Builds
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        package: [backend, migrations, keycloak]
+        include:
+          - package: backend
+            build_file: ./Dockerfile.backend
+            build_context: ./
+          - package: migrations
+            build_file: ./Dockerfile.migrations
+            build_context: ./
+          - package: keycloak
+            build_file: ./Dockerfile.keycloak
+            build_context: ./
+    timeout-minutes: 10
+    steps:
+      - uses: ./.github/actions/image-builder
+        with:
+          package: ${{ matrix.package }}
+          tags: ${{ inputs.tags }}
+          triggers: ('${{ matrix.package }}/' '.github/workflows/.builds.yml')
+          tag_fallback: latest

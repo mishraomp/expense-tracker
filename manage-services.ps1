@@ -194,8 +194,7 @@ function KillNodeFallback($search) {
 }
 
 if ($Action -eq 'stop') {
-  # STOP order should be: metabase -> keycloak -> pg-backup-cron -> postgres -> stop node processes
-  StopService metabase
+  # STOP order should be: keycloak -> pg-backup-cron -> postgres -> stop node processes
   StopService keycloak
   StopService postgres
 
@@ -243,7 +242,6 @@ if ($Action -eq 'stop') {
   
   StartServiceIfNotRunning keycloak
   
-  StartServiceIfNotRunning metabase
   StartServiceIfNotRunning pg-backup
 
   # Build frontend first

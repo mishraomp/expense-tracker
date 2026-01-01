@@ -4,8 +4,9 @@
   "description": "Expense Tracker Backend API",
   "main": "dist/main.js",
   "scripts": {
-    "build": "nest build",
-    "build:prod": "node ../scripts/build-prod.js && npm run build:cleanup",
+    "build:prod": "node ../scripts/build-prod.js",
+    "build": "prisma generate && nest build",
+    "deploy": "npm ci --ignore-scripts --no-update-notifier && npm run build",
     "build:cleanup": "node ../scripts/cleanup-dist.js",
     "start": "nest start",
     "start:dev": "nest start --watch",

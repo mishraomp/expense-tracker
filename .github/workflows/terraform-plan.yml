@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   fmt:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,70 +31,14 @@ jobs:
         working-directory: infra/terraform
         run: terraform fmt -check -recursive
 
-  validate-fork:
-    runs-on: ubuntu-latest
-    needs: [fmt]
-    if: ${{ github.event.pull_request.head.repo.fork == true }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      - name: Create CI validate tfvars
-        shell: bash
-        working-directory: infra/terraform
-        run: |
-          set -euo pipefail
-          cat > ci.validate.tfvars <<'EOF'
-          app_env = "dev"
-          resource_group_name = "ci-rg"
-          location = "canadacentral"
-          tags = { app = "expense-tracker", app_env = "dev" }
-          ip_allow_list_cidrs = ["203.0.113.10/32"]
-          key_vault_name = "cikv000000000000000000"
-          log_analytics_workspace_name = "ci-law"
-          postgres_server_name = "cipg000000000000000000"
-          vnet_name = "ci-vnet"
-          vnet_address_space = ["10.0.0.0/16"]
-          aca_subnet_name = "aca"
-          aca_subnet_cidr = "10.0.1.0/24"
-          postgres_subnet_name = "postgres"
-          postgres_subnet_cidr = "10.0.2.0/24"
-          container_app_environment_name = "ci-acae"
-          container_app_name = "ci-app"
-          backend_image = "ghcr.io/example/example-backend:sha-deadbeef"
-          postgres_admin_username = "ciadmin"
-          postgres_admin_password = "ci-password"
-          EOF
-
-      - name: Terraform init (no backend)
-        shell: bash
-        working-directory: infra/terraform
-        run: terraform init -backend=false
-
-      - name: Terraform validate
-        shell: bash
-        working-directory: infra/terraform
-        run: terraform validate
-
-      - name: Terraform plan (config validation only)
-        shell: bash
-        working-directory: infra/terraform
-        run: terraform plan -refresh=false -lock=false -var-file=ci.validate.tfvars
-
   plan:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [fmt]
+    environment: dev
     if: ${{ github.event.pull_request.head.repo.fork == false }}
     concurrency:
-      group: terraform-plan-${{ matrix.app_env }}
+      group: terraform-plan-dev
       cancel-in-progress: true
-    strategy:
-      fail-fast: false
-      matrix:
-        app_env: [dev, test, prod]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -104,51 +48,11 @@ jobs:
 
       - name: Azure login (OIDC)
         uses: azure/login@v2
+
         with:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
-
-      - name: Prepare CI overrides
-        id: overrides
-        shell: bash
-        working-directory: infra/terraform
-        env:
-          APP_ENV: ${{ matrix.app_env }}
-          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-          KEY_VAULT_NAME: ${{ secrets.KEY_VAULT_NAME }}
-          IP_ALLOW_LIST_CIDRS: ${{ secrets.IP_ALLOW_LIST_CIDRS }}
-        run: |
-          set -euo pipefail
-
-          cat > ci.overrides.auto.tfvars <<EOF
-          app_env = "${APP_ENV}"
-          resource_group_name = "${AZURE_RESOURCE_GROUP}"
-          EOF
-
-          if [[ -n "${KEY_VAULT_NAME:-}" ]]; then
-            echo "key_vault_name = \"${KEY_VAULT_NAME}\"" >> ci.overrides.auto.tfvars
-          fi
-
-          if [[ -n "${IP_ALLOW_LIST_CIDRS:-}" ]]; then
-            # Convert comma-separated CIDRs into HCL list
-            IFS=',' read -r -a CIDRS <<< "${IP_ALLOW_LIST_CIDRS}"
-            printf 'ip_allow_list_cidrs = [' >> ci.overrides.auto.tfvars
-            first=true
-            for c in "${CIDRS[@]}"; do
-              c_trimmed="${c//[[:space:]]/}"
-              if [[ -z "$c_trimmed" ]]; then
-                continue
-              fi
-              if [[ "$first" == true ]]; then
-                first=false
-              else
-                printf ', ' >> ci.overrides.auto.tfvars
-              fi
-              printf '"%s"' "$c_trimmed" >> ci.overrides.auto.tfvars
-            done
-            printf ']\n' >> ci.overrides.auto.tfvars
-          fi
 
       - name: Terraform init (remote state)
         shell: bash
@@ -185,7 +89,7 @@ jobs:
           set -euo pipefail
           terraform plan \
             -no-color \
-            -var-file=terraform.${{ matrix.app_env }}.tfvars \
+            -var-file=terraform.dev.tfvars \
             -out=tfplan
 
       - name: Create plan summary
@@ -200,32 +104,9 @@ jobs:
           head -n 200 plan.txt > plan.summary.txt
 
           {
-            echo "### Terraform plan (${{ matrix.app_env }})"
+            echo "### Terraform plan dev"
             echo ""
             echo "\`\`\`"
             cat plan.summary.txt
             echo "\`\`\`"
           } > pr-comment.md
-
-      - name: Upload full plan
-        uses: actions/upload-artifact@v4
-        with:
-          name: tfplan-${{ matrix.app_env }}
-          path: |
-            infra/terraform/tfplan
-            infra/terraform/plan.txt
-            infra/terraform/plan.summary.txt
-          if-no-files-found: error
-
-      - name: Comment plan summary on PR
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const body = fs.readFileSync('infra/terraform/pr-comment.md', 'utf8');
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body,
-            });

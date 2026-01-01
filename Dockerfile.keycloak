@@ -1,0 +1,3 @@
+FROM quay.io/keycloak/keycloak:26.4.3 AS keycloak
+COPY ./docker/keycloak/export /opt/keycloak/data/import
+CMD [ "start-dev", "--import-realm" ]
