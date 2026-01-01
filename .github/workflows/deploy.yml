@@ -2,6 +2,9 @@ name: deploy
 
 on:
   pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, closed]
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       app_env:
@@ -86,4 +89,9 @@ jobs:
           TF_VAR_azure_resource_group: ${{ secrets.AZURE_RESOURCE_GROUP }}
           TF_VAR_ip_allow_list_cidrs: ${{ secrets.IP_ALLOW_LIST_CIDRS }}
         run: |
-          ./deploy-terraform.sh apply -var-file=terraform.${{ inputs.app_env || 'dev' }}.tfvars
+          if [[ "${{ github.event.action }}" == "closed" ]]; then
+            COMMAND="destroy"
+          else
+            COMMAND="apply"
+          fi
+          ./deploy-terraform.sh "$COMMAND" -var-file="terraform.${{ inputs.app_env || 'dev' }}.tfvars"
