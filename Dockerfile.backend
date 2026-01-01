@@ -7,6 +7,10 @@ RUN cd frontend && npm ci --ignore-scripts --no-update-notifier --omit=dev && np
 # Build
 FROM node:24.12.0-slim AS build
 
+# Prisma requires OpenSSL/libssl detection during generate/build.
+RUN apt-get update -y \
+	&& apt-get install -y --no-install-recommends openssl libssl3 ca-certificates \
+	&& rm -rf /var/lib/apt/lists/*
 # Copy, build static files; see .dockerignore for exclusions
 WORKDIR /app
 COPY ./backend ./backend
@@ -16,26 +20,29 @@ RUN cd backend && npm run deploy
 # Dependencies
 FROM node:24.12.0-slim AS dependencies
 
+# Prisma requires OpenSSL/libssl detection during generate/build.
+RUN apt-get update -y \
+	&& apt-get install -y --no-install-recommends openssl libssl3 ca-certificates \
+	&& rm -rf /var/lib/apt/lists/*
 # Copy, build static files; see .dockerignore for exclusions
 WORKDIR /app
 COPY ./backend ./backend
 ENV PRISMA_CLI_BINARY_TARGETS=debian-openssl-3.0.x
 RUN cd backend && npm ci --ignore-scripts --no-update-notifier --omit=dev
 
-# Deploy using minimal Distroless image
-FROM gcr.io/distroless/nodejs24-debian12:nonroot
+FROM node:24.11.1
 ENV NODE_ENV=production
 
 # Copy app and dependencies
 WORKDIR /app
-COPY --from=dependencies /app/node_modules ./node_modules
-COPY --from=build /app/generated ./generated
-COPY --from=build /app/dist ./dist
+COPY --from=dependencies /app/backend/node_modules ./node_modules
+COPY --from=build /app/backend/node_modules/@prisma ./node_modules/@prisma
+COPY --from=build /app/backend/node_modules/.prisma ./node_modules/.prisma
+COPY --from=build /app/backend/node_modules/prisma ./node_modules/prisma
+COPY --from=build /app/backend/dist ./dist
 COPY --from=build-frontend /app/frontend/dist ./public
 # Boilerplate, not used in OpenShift/Kubernetes
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s CMD curl -f http://localhost:3000/api
 
-# Nonroot user, limit heap size to 150 MB
-USER nonroot
 CMD ["--max-old-space-size=150", "/app/dist/main"]
