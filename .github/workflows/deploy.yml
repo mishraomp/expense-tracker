@@ -27,21 +27,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  builds:
-    if: ${{ github.event.pull_request.head.repo.fork == false }}
-    concurrency:
-      # Cancel in progress for PR open and close
-      group: builds-${{ github.event.number || 'latest' }}
-      cancel-in-progress: true
-    uses: ./.github/workflows/.builds.yml
-    with:
-      tags: |
-        ${{ github.event.number || 'manual' }}
-        manual-${{ github.run_number }}
-        latest
   deploy:
     runs-on: ubuntu-24.04
-    needs: [builds]
+    #needs: [builds]
     if: ${{ github.event.pull_request.head.repo.fork == false }}
     environment: ${{ inputs.app_env || 'dev' }}
     steps:
