@@ -209,7 +209,10 @@ resource "azurerm_container_app" "this" {
         name  = "POSTGRES_USER"
         value = var.postgres_admin_username
       }
-
+      env {
+        name  = "POSTGRES_SSLMODE"
+        value = "require"
+      }
       env {
         name        = "POSTGRES_PASSWORD"
         secret_name = "password"
