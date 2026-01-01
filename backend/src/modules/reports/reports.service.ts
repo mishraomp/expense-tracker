@@ -615,6 +615,54 @@ export class ReportsService {
     };
   }
 
+  /**
+   * Get total expenses against budgeted categories for a date range.
+   * Only counts expenses where the category/subcategory has a budget that overlaps the date range.
+   */
+  async getBudgetedExpenses(
+    userId: string,
+    params: { startDate: string; endDate: string },
+  ): Promise<{ budgetedExpenses: number }> {
+    const { startDate, endDate } = params;
+
+    // Get expenses where the category or subcategory has a budget overlapping the date range
+    // We consider an expense "budgeted" if:
+    // 1. The expense's category has a category-level budget that overlaps, OR
+    // 2. The expense's subcategory has a subcategory-level budget that overlaps
+    const result = await this.prisma.$queryRaw<{ total: string }[]>(
+      Prisma.sql`
+        SELECT COALESCE(SUM(e.amount), 0)::text as total
+        FROM expenses e
+        WHERE e.user_id = ${userId}::uuid
+          AND e.deleted_at IS NULL
+          AND e.date >= ${startDate}::date
+          AND e.date <= ${endDate}::date
+          AND (
+            -- Category has a budget overlapping the date range
+            EXISTS (
+              SELECT 1 FROM budgets b
+              WHERE b.category_id = e.category_id
+                AND b.start_date <= ${endDate}::date
+                AND b.end_date >= ${startDate}::date
+            )
+            OR
+            -- Subcategory has a budget overlapping the date range
+            EXISTS (
+              SELECT 1 FROM budgets b
+              WHERE b.subcategory_id = e.subcategory_id
+                AND e.subcategory_id IS NOT NULL
+                AND b.start_date <= ${endDate}::date
+                AND b.end_date >= ${startDate}::date
+            )
+          )
+      `,
+    );
+
+    return {
+      budgetedExpenses: parseFloat(result[0]?.total || '0'),
+    };
+  }
+
   async getIncomeVsExpense(
     userId: string,
     query: IncomeVsExpenseQueryDto,

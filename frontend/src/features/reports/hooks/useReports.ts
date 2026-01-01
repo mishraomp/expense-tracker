@@ -73,7 +73,7 @@ export const useCategoryBudgetReport = (query: BudgetReportQuery & { enabled?: b
     queryKey: ['reports', 'budget-report', 'categories', apiQuery],
     queryFn: () => reportsApi.getCategoryBudgetReport(apiQuery),
     staleTime: 5 * 60 * 1000,
-    enabled,
+    enabled: enabled && !!apiQuery.startDate && !!apiQuery.endDate,
   });
 };
 
@@ -83,7 +83,7 @@ export const useSubcategoryBudgetReport = (query: BudgetReportQuery & { enabled?
     queryKey: ['reports', 'budget-report', 'subcategories', apiQuery],
     queryFn: () => reportsApi.getSubcategoryBudgetReport(apiQuery),
     staleTime: 5 * 60 * 1000,
-    enabled,
+    enabled: enabled && !!apiQuery.startDate && !!apiQuery.endDate,
   });
 };
 
@@ -103,6 +103,18 @@ export const useTotalBudget = (query: { startDate: string; endDate: string }) =>
   return useQuery({
     queryKey: ['reports', 'budgets', 'total', query],
     queryFn: () => reportsApi.getTotalBudget(query),
+    staleTime: 5 * 60 * 1000,
+    enabled: !!query.startDate && !!query.endDate,
+  });
+};
+
+/**
+ * Hook to fetch expenses against budgeted categories for a date range.
+ */
+export const useBudgetedExpenses = (query: { startDate: string; endDate: string }) => {
+  return useQuery({
+    queryKey: ['reports', 'budgets', 'expenses', query],
+    queryFn: () => reportsApi.getBudgetedExpenses(query),
     staleTime: 5 * 60 * 1000,
     enabled: !!query.startDate && !!query.endDate,
   });
