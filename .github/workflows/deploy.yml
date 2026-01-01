@@ -77,6 +77,7 @@ jobs:
           BACKEND_STORAGE_ACCOUNT: ${{ vars.TFSTATE_STORAGE_ACCOUNT }}
           BACKEND_CONTAINER_NAME: ${{ secrets.TFSTATE_CONTAINER }}
           BACKEND_STATE_KEY: "expense-tracker.dev.tfstate"
+          TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           TF_VAR_postgres_admin_username: ${{ secrets.POSTGRES_ADMIN_USERNAME }}
           TF_VAR_postgres_admin_password: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
           TF_VAR_backend_image: ${{ steps.image.outputs.backend-image }}
