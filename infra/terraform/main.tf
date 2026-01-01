@@ -30,17 +30,6 @@ module "network" {
   postgres_subnet_cidr = var.postgres_subnet_cidr
 }
 
-module "key_vault" {
-  source              = "./modules/key-vault"
-  resource_group_name = var.resource_group_name
-  location            = var.location
-  tags                = var.tags
-
-  key_vault_name                   = var.key_vault_name
-  tenant_id                        = data.azurerm_client_config.current.tenant_id
-  log_analytics_workspace_id       = module.observability.log_analytics_workspace_id
-  log_analytics_workspace_resource = module.observability.log_analytics_workspace_resource_id
-}
 
 module "postgres" {
   source              = "./modules/postgres"
@@ -71,8 +60,6 @@ module "container_apps" {
   log_analytics_workspace_id       = module.observability.log_analytics_workspace_id
   log_analytics_workspace_resource = module.observability.log_analytics_workspace_resource_id
 
-  key_vault_id  = module.key_vault.key_vault_id
-  key_vault_uri = module.key_vault.key_vault_uri
 
   ip_allow_list_cidrs = var.ip_allow_list_cidrs
 
@@ -81,10 +68,10 @@ module "container_apps" {
   flyway_image   = var.flyway_image
 
   keycloak_admin_username = var.keycloak_admin_username
-  key_vault_secret_ids    = var.key_vault_secret_ids
 
   postgres_host             = module.postgres.fqdn
   postgres_app_db_name      = var.postgres_app_db_name
   postgres_keycloak_db_name = var.postgres_keycloak_db_name
   postgres_admin_username   = var.postgres_admin_username
+  postgres_admin_password   = var.postgres_admin_password
 }

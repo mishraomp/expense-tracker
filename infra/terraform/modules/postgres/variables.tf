@@ -27,7 +27,7 @@ variable "admin_password" {
 
 variable "postgres_version" {
   type    = string
-  default = "16"
+  default = "18"
 }
 
 variable "sku_name" {

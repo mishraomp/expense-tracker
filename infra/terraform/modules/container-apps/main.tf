@@ -3,10 +3,6 @@ locals {
     for idx, cidr in var.ip_allow_list_cidrs : idx => cidr
   }
 
-  has_database_url_secret     = contains(keys(var.key_vault_secret_ids), "database_url")
-  has_keycloak_db_url_secret  = contains(keys(var.key_vault_secret_ids), "keycloak_db_url")
-  has_keycloak_admin_password = contains(keys(var.key_vault_secret_ids), "keycloak_admin_password")
-  has_postgres_admin_password = contains(keys(var.key_vault_secret_ids), "postgres_admin_password")
 }
 
 resource "azurerm_user_assigned_identity" "runtime" {
@@ -16,18 +12,17 @@ resource "azurerm_user_assigned_identity" "runtime" {
   tags                = var.tags
 }
 
-resource "azurerm_role_assignment" "kv_secrets_user" {
-  scope                = var.key_vault_id
-  role_definition_name = "Key Vault Secrets User"
-  principal_id         = azurerm_user_assigned_identity.runtime.principal_id
-}
 
 resource "azurerm_container_app_environment" "this" {
-  name                       = var.container_app_environment_name
-  location                   = var.location
-  resource_group_name        = var.resource_group_name
-  log_analytics_workspace_id = var.log_analytics_workspace_id
-
+  name                               = var.container_app_environment_name
+  location                           = var.location
+  resource_group_name                = var.resource_group_name
+  infrastructure_resource_group_name = "ME-${var.resource_group_name}-rg"
+  log_analytics_workspace_id         = var.log_analytics_workspace_id
+  workload_profile {
+    name                  = "Consumption"
+    workload_profile_type = "Consumption"
+  }
   infrastructure_subnet_id = var.aca_subnet_id
 
   tags = var.tags
@@ -43,6 +38,75 @@ resource "azurerm_monitor_diagnostic_setting" "env" {
   }
 }
 
+resource "azurerm_container_app" "keycloak" {
+  name                         = "${var.container_app_name}-keycloak"
+  resource_group_name          = var.resource_group_name
+  container_app_environment_id = azurerm_container_app_environment.this.id
+  revision_mode                = "Single"
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.runtime.id]
+  }
+  secret {
+    name  = "password"
+    value = var.postgres_admin_password
+  }
+  ingress {
+    external_enabled = false
+    target_port      = 8080
+    transport        = "auto"
+    traffic_weight {
+      latest_revision = true
+      percentage      = 100
+    }
+  }
+  template {
+    min_replicas = 0
+    max_replicas = 1
+    container {
+      name   = "keycloak"
+      image  = var.keycloak_image
+      cpu    = 0.5
+      memory = "1Gi"
+
+      args = ["start-dev"]
+
+      env {
+        name  = "KC_BOOTSTRAP_ADMIN_USERNAME"
+        value = var.keycloak_admin_username
+      }
+      env {
+        name        = "KC_BOOTSTRAP_ADMIN_PASSWORD"
+        secret_name = "password"
+      }
+
+      env {
+        name  = "KC_DB"
+        value = "postgres"
+      }
+      env {
+        name  = "KC_DB_URL"
+        value = "jdbc:postgresql://${var.postgres_host}:5432/${var.postgres_keycloak_db_name}"
+      }
+
+      env {
+        name  = "KC_HTTP_ENABLED"
+        value = "true"
+      }
+      readiness_probe {
+        transport = "HTTP"
+        port      = 8080
+        path      = "/realms/master"
+
+        initial_delay           = 10
+        interval_seconds        = 10
+        timeout                 = 3
+        failure_count_threshold = 6
+      }
+    }
+  }
+}
 resource "azurerm_container_app" "this" {
   name                         = var.container_app_name
   resource_group_name          = var.resource_group_name
@@ -53,14 +117,9 @@ resource "azurerm_container_app" "this" {
     type         = "UserAssigned"
     identity_ids = [azurerm_user_assigned_identity.runtime.id]
   }
-
-  dynamic "secret" {
-    for_each = var.key_vault_secret_ids
-    content {
-      name                = secret.key
-      identity            = azurerm_user_assigned_identity.runtime.id
-      key_vault_secret_id = secret.value
-    }
+  secret {
+    name  = "password"
+    value = var.postgres_admin_password
   }
 
   ingress {
@@ -105,14 +164,23 @@ resource "azurerm_container_app" "this" {
         name  = "FLYWAY_USER"
         value = var.postgres_admin_username
       }
-
-      dynamic "env" {
-        for_each = local.has_postgres_admin_password ? [1] : []
-        content {
-          name        = "FLYWAY_PASSWORD"
-          secret_name = "postgres_admin_password"
-        }
+      env {
+        name  = "FLYWAY_SCHEMAS"
+        value = "public"
       }
+      env {
+        name  = "FLYWAY_CONNECT_RETRIES"
+        value = "10"
+      }
+      env {
+        name  = "FLYWAY_GROUP"
+        value = "true"
+      }
+      env {
+        name        = "FLYWAY_PASSWORD"
+        secret_name = "password"
+      }
+
     }
 
     container {
@@ -121,19 +189,44 @@ resource "azurerm_container_app" "this" {
       cpu    = 0.5
       memory = "1Gi"
 
-      dynamic "env" {
-        for_each = local.has_database_url_secret ? [1] : []
-        content {
-          name        = "DATABASE_URL"
-          secret_name = "database_url"
-        }
+      env {
+        name  = "NODE_ENV"
+        value = "production"
+      }
+      env {
+        name  = "POSTGRES_HOST"
+        value = var.postgres_host
       }
 
+      env {
+        name  = "POSTGRES_USER"
+        value = var.postgres_admin_username
+      }
+
+      env {
+        name        = "POSTGRES_PASSWORD"
+        secret_name = "password"
+      }
       env {
         name  = "PORT"
         value = "3000"
       }
-
+      env {
+        name  = "POSTGRES_DATABASE"
+        value = var.postgres_app_db_name
+      }
+      env {
+        name  = "KEYCLOAK_URL"
+        value = "https://${var.container_app_name}-keycloak.${azurerm_container_app_environment.this.default_domain}"
+      }
+      env {
+        name  = "KEYCLOAK_REALM"
+        value = "expense-tracker"
+      }
+      env {
+        name  = "KEYCLOAK_CLIENT_ID_API"
+        value = "expense-tracker-api"
+      }
       readiness_probe {
         transport = "HTTP"
         port      = 3000
@@ -146,65 +239,11 @@ resource "azurerm_container_app" "this" {
       }
     }
 
-    container {
-      name   = "keycloak"
-      image  = var.keycloak_image
-      cpu    = 0.5
-      memory = "1Gi"
 
-      args = ["start-dev"]
-
-      env {
-        name  = "KEYCLOAK_ADMIN"
-        value = var.keycloak_admin_username
-      }
-
-      dynamic "env" {
-        for_each = local.has_keycloak_admin_password ? [1] : []
-        content {
-          name        = "KEYCLOAK_ADMIN_PASSWORD"
-          secret_name = "keycloak_admin_password"
-        }
-      }
-
-      env {
-        name  = "KC_DB"
-        value = "postgres"
-      }
-
-      dynamic "env" {
-        for_each = local.has_keycloak_db_url_secret ? [1] : []
-        content {
-          name        = "KC_DB_URL"
-          secret_name = "keycloak_db_url"
-        }
-      }
-
-      env {
-        name  = "KC_HTTP_ENABLED"
-        value = "true"
-      }
-      env {
-        name  = "KC_PROXY_HEADERS"
-        value = "xforwarded"
-      }
-
-      readiness_probe {
-        transport = "HTTP"
-        port      = 8080
-        path      = "/realms/master"
-
-        initial_delay           = 10
-        interval_seconds        = 10
-        timeout                 = 3
-        failure_count_threshold = 6
-      }
-    }
   }
 
   tags = var.tags
 
-  depends_on = [azurerm_role_assignment.kv_secrets_user]
 }
 
 resource "azurerm_monitor_diagnostic_setting" "app" {
