@@ -74,7 +74,7 @@ jobs:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           ARM_USE_OIDC: true
           BACKEND_RESOURCE_GROUP: ${{ secrets.TFSTATE_RESOURCE_GROUP }}
-          BACKEND_STORAGE_ACCOUNT: ${{ vars.TFSTATE_STORAGE_ACCOUNT }}
+          BACKEND_STORAGE_ACCOUNT: ${{ secrets.TFSTATE_STORAGE_ACCOUNT }}
           BACKEND_CONTAINER_NAME: ${{ secrets.TFSTATE_CONTAINER }}
           BACKEND_STATE_KEY: "expense-tracker.dev.tfstate"
           TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
