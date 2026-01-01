@@ -557,21 +557,26 @@ extract_import_target_from_tf_output() {
 
         {
             line = $0
+            normalized = line
+            # Provider logs sometimes escape quotes as \"; normalize so matching is consistent.
+            gsub(/\\"/, "\"", normalized)
 
             # Terraform error blocks usually include:
             #   with <address>,
             #   on <file> line ...
             # Note: the "with" line can appear BEFORE or AFTER the error line.
-            if (match(line, /with [^,]+,/)) {
-                pending_addr = substr(line, RSTART + 5, RLENGTH - 6)
+            if (match(normalized, /with [^,]+,/)) {
+                pending_addr = substr(normalized, RSTART + 5, RLENGTH - 6)
                 pending_addr = trim(pending_addr)
                 maybe_print_pair()
             }
 
             # Some provider logs include:
             #   vertex "<address>" error: ...
-            if (match(line, /vertex \"[^\"]+\" error:/)) {
-                addr = substr(line, RSTART + 8, RLENGTH - 15)
+            if (match(normalized, /vertex "[^"]+" error:/)) {
+                # Match text is: vertex "<address>" error:
+                # prefix len = 8 (vertex "), suffix len = 8 (" error:)
+                addr = substr(normalized, RSTART + 8, RLENGTH - 16)
                 addr = trim(addr)
                 if (length(addr) > 0) {
                     pending_addr = addr
@@ -581,9 +586,9 @@ extract_import_target_from_tf_output() {
 
             # Detect "already exists" errors and extract the Azure resource ID.
             # Handles both standard Terraform formatting and provider diagnostic_summary logs.
-            if (index(line, "a resource with the ID \"") > 0 && index(line, "\" already exists") > 0) {
-                start = index(line, "a resource with the ID \"") + length("a resource with the ID \"")
-                rest = substr(line, start)
+            if (index(normalized, "a resource with the ID \"") > 0 && index(normalized, "\" already exists") > 0) {
+                start = index(normalized, "a resource with the ID \"") + length("a resource with the ID \"")
+                rest = substr(normalized, start)
                 end = index(rest, "\" already exists")
                 if (end > 0) {
                     pending_rid = substr(rest, 1, end - 1)

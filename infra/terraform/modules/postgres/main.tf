@@ -24,9 +24,9 @@ resource "azurerm_postgresql_flexible_server" "this" {
   administrator_login    = var.admin_username
   administrator_password = var.admin_password
 
-  delegated_subnet_id = var.delegated_subnet
-  private_dns_zone_id = azurerm_private_dns_zone.postgres.id
-
+  delegated_subnet_id           = var.delegated_subnet
+  private_dns_zone_id           = azurerm_private_dns_zone.postgres.id
+  zone                          = "1"
   public_network_access_enabled = false
   backup_retention_days         = var.backup_retention_days
 
@@ -57,4 +57,28 @@ resource "azurerm_monitor_diagnostic_setting" "this" {
   enabled_metric {
     category = "AllMetrics"
   }
+}
+resource "time_sleep" "wait_for_postgresql" {
+  depends_on = [
+    azurerm_postgresql_flexible_server.this,
+    azurerm_postgresql_flexible_server_database.db,
+  ]
+  create_duration = "60s"
+}
+resource "azurerm_postgresql_flexible_server_configuration" "shared_preload_libraries" {
+  name      = "shared_preload_libraries"
+  server_id = azurerm_postgresql_flexible_server.this.id
+  value     = "pg_stat_statements,pg_cron"
+
+  depends_on = [time_sleep.wait_for_postgresql]
+}
+resource "azurerm_postgresql_flexible_server_configuration" "azure_extensions" {
+  name      = "azure.extensions"
+  server_id = azurerm_postgresql_flexible_server.this.id
+  value     = "uuid-ossp"
+
+  depends_on = [
+    time_sleep.wait_for_postgresql,
+    azurerm_postgresql_flexible_server_configuration.shared_preload_libraries
+  ]
 }

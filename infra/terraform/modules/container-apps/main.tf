@@ -80,7 +80,14 @@ resource "azurerm_container_app" "keycloak" {
         name        = "KC_BOOTSTRAP_ADMIN_PASSWORD"
         secret_name = "password"
       }
-
+      env {
+        name  = "KC_DB_USERNAME"
+        value = var.postgres_admin_username
+      }
+      env {
+        name        = "KC_DB_PASSWORD"
+        secret_name = "password"
+      }
       env {
         name  = "KC_DB"
         value = "postgres"
