@@ -122,7 +122,6 @@ variable "keycloak_image" {
 variable "flyway_image" {
   type        = string
   description = "Flyway container image"
-  default     = "flyway/flyway:11"
 }
 
 variable "keycloak_admin_username" {
