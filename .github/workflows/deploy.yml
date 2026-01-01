@@ -25,7 +25,10 @@ permissions:
 concurrency:
   group: deploy-${{ inputs.app_env || 'dev' }}
   cancel-in-progress: false
-
+env:
+  TF_VERSION: 1.12.2
+  TF_LOG: DEBUG
+  AZURE_REGION: Canada Central
 jobs:
   deploy:
     runs-on: ubuntu-24.04
