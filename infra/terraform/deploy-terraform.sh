@@ -548,56 +548,63 @@ extract_import_target_from_tf_output() {
             return s
         }
 
-        function maybe_print_pair() {
-            if (length(pending_addr) > 0 && length(pending_rid) > 0) {
-                print pending_addr "\t" pending_rid
-                exit 0
-            }
+        function strip_ansi(s) {
+            # Remove ANSI escape sequences like: \x1B[0;31m
+            gsub(/\033\[[0-9;]*[A-Za-z]/, "", s)
+            return s
         }
 
-        {
-            line = $0
-            normalized = line
-            # Provider logs sometimes escape quotes as \"; normalize so matching is consistent.
-            gsub(/\\"/, "\"", normalized)
+        BEGIN { found = 0 }
+
+        found == 0 {
+            normalized = $0
+            gsub(/\r/, "", normalized)
+            normalized = strip_ansi(normalized)
 
             # Terraform error blocks usually include:
             #   with <address>,
-            #   on <file> line ...
             # Note: the "with" line can appear BEFORE or AFTER the error line.
-            if (match(normalized, /with [^,]+,/)) {
-                pending_addr = substr(normalized, RSTART + 5, RLENGTH - 6)
-                pending_addr = trim(pending_addr)
-                maybe_print_pair()
+            with_pos = index(normalized, "with ")
+            if (with_pos > 0) {
+                rest = substr(normalized, with_pos + 5)
+                comma_pos = index(rest, ",")
+                if (comma_pos > 0) {
+                    pending_addr = trim(substr(rest, 1, comma_pos - 1))
+                }
             }
 
             # Some provider logs include:
             #   vertex "<address>" error: ...
-            if (match(normalized, /vertex "[^"]+" error:/)) {
-                # Match text is: vertex "<address>" error:
-                # prefix len = 8 (vertex "), suffix len = 8 (" error:)
-                addr = substr(normalized, RSTART + 8, RLENGTH - 16)
-                addr = trim(addr)
-                if (length(addr) > 0) {
-                    pending_addr = addr
-                    maybe_print_pair()
+            vertex_pos = index(normalized, "vertex \"")
+            if (vertex_pos > 0) {
+                rest = substr(normalized, vertex_pos + 8)
+                quote_pos = index(rest, "\"")
+                if (quote_pos > 0) {
+                    pending_addr = trim(substr(rest, 1, quote_pos - 1))
                 }
             }
 
             # Detect "already exists" errors and extract the Azure resource ID.
-            # Handles both standard Terraform formatting and provider diagnostic_summary logs.
-            if (index(normalized, "a resource with the ID \"") > 0 && index(normalized, "\" already exists") > 0) {
-                start = index(normalized, "a resource with the ID \"") + length("a resource with the ID \"")
-                rest = substr(normalized, start)
-                end = index(rest, "\" already exists")
-                if (end > 0) {
-                    pending_rid = substr(rest, 1, end - 1)
-                    pending_rid = trim(pending_rid)
-                    maybe_print_pair()
+            # Example:
+            #   Error: a resource with the ID "<id>" already exists - ...
+            id_prefix = "a resource with the ID \""
+            id_start = index(normalized, id_prefix)
+            if (id_start > 0) {
+                rest = substr(normalized, id_start + length(id_prefix))
+                already_pos = index(rest, "\" already exists")
+                if (already_pos > 0) {
+                    pending_rid = trim(substr(rest, 1, already_pos - 1))
                 }
             }
+
+            # Check if we have both pieces
+            if (length(pending_addr) > 0 && length(pending_rid) > 0) {
+                print pending_addr "\t" pending_rid
+                found = 1
+            }
         }
-        END { exit 1 }
+
+        END { exit (found ? 0 : 1) }
     ' "$tf_output_file"
 }
 
@@ -680,7 +687,9 @@ tf_apply() {
         fi
 
         # Try to auto-import existing resources, then retry.
-        if tf_import_existing_resource_if_needed "$tf_output_file"; then
+        tf_import_existing_resource_if_needed "$tf_output_file"
+        local import_rc=$?
+        if [[ $import_rc -eq 0 ]]; then
             rm -f "$tf_output_file"
             attempt=$((attempt + 1))
             if [[ $attempt -gt $max_retries ]]; then
@@ -688,6 +697,10 @@ tf_apply() {
                 exit $tf_exit
             fi
             continue
+        elif [[ $import_rc -eq 2 ]]; then
+            rm -f "$tf_output_file"
+            log_error "Terraform apply failed (import attempted but failed)."
+            exit $tf_exit
         fi
 
         rm -f "$tf_output_file"

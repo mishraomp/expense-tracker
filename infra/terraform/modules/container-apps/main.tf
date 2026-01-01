@@ -43,7 +43,7 @@ resource "azurerm_container_app" "keycloak" {
   resource_group_name          = var.resource_group_name
   container_app_environment_id = azurerm_container_app_environment.this.id
   revision_mode                = "Single"
-
+  workload_profile_name        = "Consumption"
   identity {
     type         = "UserAssigned"
     identity_ids = [azurerm_user_assigned_identity.runtime.id]
@@ -119,7 +119,7 @@ resource "azurerm_container_app" "this" {
   resource_group_name          = var.resource_group_name
   container_app_environment_id = azurerm_container_app_environment.this.id
   revision_mode                = "Single"
-
+  workload_profile_name        = "Consumption"
   identity {
     type         = "UserAssigned"
     identity_ids = [azurerm_user_assigned_identity.runtime.id]
