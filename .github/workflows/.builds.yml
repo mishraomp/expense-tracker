@@ -32,6 +32,8 @@ jobs:
             build_context: ./
     timeout-minutes: 10
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - uses: ./.github/actions/image-builder
         with:
           package: ${{ matrix.package }}

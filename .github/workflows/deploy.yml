@@ -28,22 +28,17 @@ concurrency:
 
 jobs:
   builds:
-    runs-on: ubuntu-24.04
     if: ${{ github.event.pull_request.head.repo.fork == false }}
     concurrency:
       # Cancel in progress for PR open and close
       group: builds-${{ github.event.number || 'latest' }}
       cancel-in-progress: true
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Build Containers
-        uses: ./.github/workflows/.builds.yml
-        with:
-          tags: |
-            ${{ github.event.number || 'manual' }}
-            manual-${{ github.run_number }}
-            latest
+    uses: ./.github/workflows/.builds.yml
+    with:
+      tags: |
+        ${{ github.event.number || 'manual' }}
+        manual-${{ github.run_number }}
+        latest
   deploy:
     runs-on: ubuntu-24.04
     needs: [builds]
