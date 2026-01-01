@@ -99,7 +99,7 @@ jobs:
           TF_VAR_flyway_image: ${{ steps.image.outputs.flyway-image }}
           TF_VAR_keycloak_image: ${{ steps.image.outputs.keycloak-image }}
           TF_VAR_azure_resource_group: ${{ secrets.AZURE_RESOURCE_GROUP }}
-          TF_VAR_keyvault_name: ${{ secrets.AZURE_KEYVAULT_NAME }}
+          TF_VAR_key_vault_name: ${{ secrets.AZURE_KEY_VAULT_NAME }}
           TF_VAR_ip_allow_list_cidrs: ${{ secrets.IP_ALLOW_LIST_CIDRS }}
         run: |
           set -euo pipefail
