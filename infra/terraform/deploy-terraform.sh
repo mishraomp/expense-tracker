@@ -542,25 +542,53 @@ extract_import_target_from_tf_output() {
     local tf_output_file="$1"
 
     awk '
+        function trim(s) {
+            sub(/^[[:space:]]+/, "", s)
+            sub(/[[:space:]]+$/, "", s)
+            return s
+        }
+
+        function maybe_print_pair() {
+            if (length(pending_addr) > 0 && length(pending_rid) > 0) {
+                print pending_addr "\t" pending_rid
+                exit 0
+            }
+        }
+
         {
             line = $0
-            # Track the most recent "with <address>," context line.
-            # Terraform often prefixes these lines with box-drawing characters.
+
+            # Terraform error blocks usually include:
+            #   with <address>,
+            #   on <file> line ...
+            # Note: the "with" line can appear BEFORE or AFTER the error line.
             if (match(line, /with [^,]+,/)) {
-                last_with = substr(line, RSTART + 5, RLENGTH - 6)
+                pending_addr = substr(line, RSTART + 5, RLENGTH - 6)
+                pending_addr = trim(pending_addr)
+                maybe_print_pair()
             }
 
-            # Detect the common "already exists - needs to be imported" error and extract the ID.
-            if (index(line, "Error: a resource with the ID \"") > 0 && index(line, "\" already exists") > 0) {
-                start = index(line, "Error: a resource with the ID \"") + length("Error: a resource with the ID \"")
+            # Some provider logs include:
+            #   vertex "<address>" error: ...
+            if (match(line, /vertex \"[^\"]+\" error:/)) {
+                addr = substr(line, RSTART + 8, RLENGTH - 15)
+                addr = trim(addr)
+                if (length(addr) > 0) {
+                    pending_addr = addr
+                    maybe_print_pair()
+                }
+            }
+
+            # Detect "already exists" errors and extract the Azure resource ID.
+            # Handles both standard Terraform formatting and provider diagnostic_summary logs.
+            if (index(line, "a resource with the ID \"") > 0 && index(line, "\" already exists") > 0) {
+                start = index(line, "a resource with the ID \"") + length("a resource with the ID \"")
                 rest = substr(line, start)
                 end = index(rest, "\" already exists")
                 if (end > 0) {
-                    rid = substr(rest, 1, end - 1)
-                    if (length(last_with) > 0 && length(rid) > 0) {
-                        print last_with "\t" rid
-                        exit 0
-                    }
+                    pending_rid = substr(rest, 1, end - 1)
+                    pending_rid = trim(pending_rid)
+                    maybe_print_pair()
                 }
             }
         }
