@@ -18,9 +18,10 @@ on:
         required: true
 
 permissions:
-  contents: read
-  id-token: write
-
+  id-token: write # This is required for requesting the JWT
+  contents: write # This is required for actions/checkout
+  packages: write
+  pull-requests: write
 concurrency:
   group: deploy-${{ inputs.app_env || 'dev' }}
   cancel-in-progress: false
