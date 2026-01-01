@@ -34,13 +34,6 @@ container_app_name             = "et-dev-app"
 # Images are expected to come from CI-published tags.
 backend_image = "ghcr.io/<owner>/<repo>-backend:sha-<full_sha>"
 
-# Key Vault secret IDs are NOT secret values. Prefer versionless IDs so rotations don't require terraform changes.
-key_vault_secret_ids = {
-  database_url            = "https://<kv>.vault.azure.net/secrets/database-url"
-  keycloak_db_url         = "https://<kv>.vault.azure.net/secrets/keycloak-db-url"
-  keycloak_admin_password = "https://<kv>.vault.azure.net/secrets/keycloak-admin-password"
-  postgres_admin_password = "https://<kv>.vault.azure.net/secrets/postgres-admin-password"
-}
 
 # Postgres admin credentials MUST NOT be committed to tfvars.
 # Pass them via CI secrets as TF_VAR_postgres_admin_username / TF_VAR_postgres_admin_password.

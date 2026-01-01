@@ -13,7 +13,6 @@ tags = {
 ip_allow_list_cidrs = ["203.0.113.10/32"]
 
 log_analytics_workspace_name = "et-test-law"
-key_vault_name               = "ettestkv000000"
 
 postgres_server_name      = "ettestpg000000"
 postgres_app_db_name      = "expense_tracker"
@@ -33,9 +32,3 @@ container_app_name             = "et-test-app"
 
 backend_image = "ghcr.io/<owner>/<repo>-backend:sha-<full_sha>"
 
-key_vault_secret_ids = {
-  database_url            = "https://<kv>.vault.azure.net/secrets/database-url"
-  keycloak_db_url         = "https://<kv>.vault.azure.net/secrets/keycloak-db-url"
-  keycloak_admin_password = "https://<kv>.vault.azure.net/secrets/keycloak-admin-password"
-  postgres_admin_password = "https://<kv>.vault.azure.net/secrets/postgres-admin-password"
-}

@@ -29,10 +29,6 @@ variable "ip_allow_list_cidrs" {
   description = "IPv4 CIDR allow-list for Container Apps ingress"
 }
 
-variable "key_vault_name" {
-  type        = string
-  description = "Key Vault name (must be globally unique)"
-}
 
 variable "log_analytics_workspace_name" {
   type        = string
@@ -130,8 +126,3 @@ variable "keycloak_admin_username" {
   default     = "admin"
 }
 
-variable "key_vault_secret_ids" {
-  type        = map(string)
-  description = "Map of Key Vault secret IDs used by Container Apps (versioned or versionless)"
-  default     = {}
-}

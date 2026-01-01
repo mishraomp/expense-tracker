@@ -43,6 +43,9 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
+      - name: Make deploy script executable
+        shell: bash
+        run: chmod +x ./infra/terraform/deploy-terraform.sh
 
       - name: Compute backend image
         id: image
@@ -61,41 +64,25 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
-
-      - name: Terraform init (remote state)
+      - name: Terraform
         shell: bash
         working-directory: infra/terraform
         env:
-          ARM_USE_OIDC: true
+          CI: true
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-        run: |
-          set -euo pipefail
-          terraform init \
-            -backend-config="resource_group_name=${{ secrets.TFSTATE_RESOURCE_GROUP }}" \
-            -backend-config="storage_account_name=${{ secrets.TFSTATE_STORAGE_ACCOUNT }}" \
-            -backend-config="container_name=${{ secrets.TFSTATE_CONTAINER }}" \
-            -backend-config="key=expense-tracker.dev.tfstate"
-
-      - name: Terraform apply (gated)
-        shell: bash
-        working-directory: infra/terraform
-        env:
           ARM_USE_OIDC: true
-          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          BACKEND_RESOURCE_GROUP: ${{ secrets.TFSTATE_RESOURCE_GROUP }}
+          BACKEND_STORAGE_ACCOUNT: ${{ vars.TFSTATE_STORAGE_ACCOUNT }}
+          BACKEND_CONTAINER_NAME: ${{ secrets.TFSTATE_CONTAINER }}
+          BACKEND_STATE_KEY: "expense-tracker.dev.tfstate"
           TF_VAR_postgres_admin_username: ${{ secrets.POSTGRES_ADMIN_USERNAME }}
           TF_VAR_postgres_admin_password: ${{ secrets.POSTGRES_ADMIN_PASSWORD }}
           TF_VAR_backend_image: ${{ steps.image.outputs.backend-image }}
           TF_VAR_flyway_image: ${{ steps.image.outputs.flyway-image }}
           TF_VAR_keycloak_image: ${{ steps.image.outputs.keycloak-image }}
           TF_VAR_azure_resource_group: ${{ secrets.AZURE_RESOURCE_GROUP }}
-          TF_VAR_key_vault_name: ${{ secrets.KEY_VAULT_NAME }}
           TF_VAR_ip_allow_list_cidrs: ${{ secrets.IP_ALLOW_LIST_CIDRS }}
         run: |
-          set -euo pipefail
-          terraform apply \
-            -auto-approve \
-            -var-file=terraform.${{ inputs.app_env || 'dev' }}.tfvars
+          ./deploy-terraform.sh apply -var-file=terraform.${{ inputs.app_env || 'dev' }}.tfvars

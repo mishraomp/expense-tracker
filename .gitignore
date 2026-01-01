@@ -81,3 +81,10 @@ backups
 **/.tanstack/**
 backend/public/**
 .expense-tracker-pids.json
+#terraform related ignores
+*.tfvars.json
+.terraformrc
+terraform.rc
+.terraform/
+**/.terraform.lock.hcl
+.terraform.lock.hcl
