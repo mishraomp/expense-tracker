@@ -15,6 +15,7 @@ RUN apt-get update -y \
 WORKDIR /app
 COPY ./backend ./backend
 ENV PRISMA_CLI_BINARY_TARGETS=debian-openssl-3.0.x
+ENV DATABASE_URL=postgresql://postgres:postgres@localhost:5432/expense_tracker?schema=public
 RUN cd backend && npm run deploy
 
 # Dependencies
@@ -28,6 +29,7 @@ RUN apt-get update -y \
 WORKDIR /app
 COPY ./backend ./backend
 ENV PRISMA_CLI_BINARY_TARGETS=debian-openssl-3.0.x
+ENV DATABASE_URL=postgresql://postgres:postgres@localhost:5432/expense_tracker?schema=public
 RUN cd backend && npm ci --ignore-scripts --no-update-notifier --omit=dev
 
 FROM node:24.11.1
