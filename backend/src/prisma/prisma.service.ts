@@ -5,7 +5,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 const DB_HOST = process.env.POSTGRES_HOST || 'localhost';
 const DB_USER = process.env.POSTGRES_USER || 'postgres';
 const DB_PWD = encodeURIComponent(process.env.POSTGRES_PASSWORD || 'postgres'); // this needs to be encoded, if the password contains special characters it will break connection string.
-const DB_PORT = process.env.POSTGRES_PORT || 5432;
+const DB_PORT = process.env.POSTGRES_PORT || 2432;
 const DB_NAME = process.env.POSTGRES_DATABASE || 'expense_tracker';
 const DB_SCHEMA = process.env.POSTGRES_SCHEMA || 'public';
 const PGBOUNCER_URL = process.env.PGBOUNCER_URL;

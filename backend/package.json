@@ -4,7 +4,7 @@
   "description": "Expense Tracker Backend API",
   "main": "dist/main.js",
   "scripts": {
-    "build:prod": "npm ci --no-update-notifier --include=dev && npm run build",
+    "build:prod": "npm install --no-update-notifier --include=dev --no-audit --fund=false && npm run build",
     "build": "prisma generate && nest build",
     "deploy": "npm ci --ignore-scripts --no-update-notifier && npm run build",
     "build:cleanup": "node ../scripts/cleanup-dist.js",

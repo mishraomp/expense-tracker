@@ -15,6 +15,34 @@ function Write-Log($msg) {
   Write-Host "[manage-services] $msg"
 }
 
+function Stop-EsbuildProcesses() {
+  # Windows can hold a lock on node_modules/@esbuild/**/esbuild.exe if an esbuild process is still alive.
+  # That causes `npm ci` to fail with EPERM unlink. Proactively stop esbuild processes to keep `start` reliable.
+  $procs = Get-Process -Name 'esbuild' -ErrorAction SilentlyContinue
+  if ($procs) {
+    Write-Log "Stopping esbuild processes to avoid Windows file locks..."
+    foreach ($p in $procs) {
+      try { Stop-Process -Id $p.Id -Force -ErrorAction Stop } catch { }
+    }
+    Start-Sleep -Milliseconds 500
+  }
+}
+
+function Stop-WorkspaceNodeProcesses() {
+  # Kill node processes whose command line references this workspace path.
+  # These are the most likely to be holding locks on native .exe/.node binaries under node_modules.
+  try {
+    $rootEscaped = [Regex]::Escape($root)
+    $found = Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -match $rootEscaped }
+    foreach ($proc in $found) {
+      try {
+        Stop-Process -Id $proc.ProcessId -Force -ErrorAction Stop
+        Write-Log "Killed node.exe pid $($proc.ProcessId) (workspace lock cleanup)"
+      } catch { }
+    }
+  } catch { }
+}
+
 function IsServiceRunning($service) {
   $cid = (& docker compose -f $composeFile ps -q $service 2>$null) -join ''
   if (-not $cid) { return $false }
@@ -79,12 +107,33 @@ function WaitForHealthy($service, $port = $null, [int]$timeoutSeconds = 120) {
 function BuildApp($name, $prefixPath, [switch]$Production) {
   Write-Log "Building $name..."
   $script = if ($Production -and $name -eq 'backend') { 'build:prod' } else { 'build' }
-  $buildResult = & npm --prefix $prefixPath run $script 2>&1
-  if ($LASTEXITCODE -ne 0) {
+
+  $maxAttempts = if ($name -eq 'backend' -and $script -eq 'build:prod') { 3 } else { 1 }
+  for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+    if ($name -eq 'backend' -and $script -eq 'build:prod') {
+      Stop-EsbuildProcesses
+      Stop-WorkspaceNodeProcesses
+    }
+
+    $buildResult = & npm --prefix $prefixPath run $script 2>&1
+    if ($LASTEXITCODE -eq 0) {
+      Write-Log "$name built successfully"
+      return $true
+    }
+
+    $isWindowsUnlinkLock = ($buildResult -match "EPERM: operation not permitted, unlink")
+    $isBackendNodeModules = ($buildResult -match "\\\\backend\\\\node_modules\\\\")
+    if ($isWindowsUnlinkLock -and $isBackendNodeModules -and $attempt -lt $maxAttempts) {
+      Write-Log "Detected Windows file lock during npm install (attempt $attempt/$maxAttempts). Retrying..."
+      Start-Sleep -Seconds 2
+      continue
+    }
+
     Write-Log "ERROR: Failed to build $name"
     Write-Host $buildResult
     return $false
   }
+
   Write-Log "$name built successfully"
   return $true
 }
@@ -159,8 +208,8 @@ function StartBackendProduction($envFilePath) {
   }
 
   # Use Start-Process which handles background processes better in PowerShell 5.1
-  # Limit Node.js heap to 128MB for this simple app
-  $nodeArgs = "--max-old-space-size=128 $mainJs"
+  # Limit Node.js heap to 256MB for this simple app
+  $nodeArgs = "--max-old-space-size=256 $mainJs"
   $proc = Start-Process -FilePath 'node' -ArgumentList $nodeArgs -WorkingDirectory $backendPath -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
 
   Write-Log "Backend (production) started with PID $($proc.Id)"
@@ -211,12 +260,12 @@ if ($Action -eq 'stop') {
   StopService postgres
 
   # Stop node processes (backend, frontend)
-  # First, kill any process listening on port 3000 (the actual server)
-  $port3000Line = netstat -aon | findstr "LISTENING" | findstr ":3000" | Select-Object -First 1
-  if ($port3000Line) {
-    $serverPid = ($port3000Line -split '\s+' | Select-Object -Last 1)
+  # First, kill any process listening on port 2083 (the actual server)
+  $port2083Line = netstat -aon | findstr "LISTENING" | findstr ":2083" | Select-Object -First 1
+  if ($port2083Line) {
+    $serverPid = ($port2083Line -split '\s+' | Select-Object -Last 1)
     if ($serverPid -and $serverPid -ne '0') {
-      Write-Log "Killing server process on port 3000 (PID: $serverPid)"
+      Write-Log "Killing server process on port 2083 (PID: $serverPid)"
       KillPid ([int]$serverPid)
     }
   }
@@ -241,6 +290,10 @@ if ($Action -eq 'stop') {
   }
 
   Write-Log "Stop sequence completed"
+
+  # Defensive: ensure no lingering esbuild processes keep node_modules locked for the next run.
+  Stop-EsbuildProcesses
+  Stop-WorkspaceNodeProcesses
 
 } elseif ($Action -eq 'start') {
 
@@ -304,9 +357,9 @@ if ($Action -eq 'stop') {
 
   Write-Log "=============================================="
   Write-Log "Start sequence completed!"
-  Write-Log "Backend (production) running on http://localhost:3000"
-  Write-Log "Frontend served by backend at http://localhost:3000"
-  Write-Log "API available at http://localhost:3000/api"
-  Write-Log "Keycloak at http://localhost:8080"
+  Write-Log "Backend (production) running on http://localhost:2083"
+  Write-Log "Frontend served by backend at http://localhost:2083"
+  Write-Log "API available at http://localhost:2083/api"
+  Write-Log "Keycloak at http://localhost:2080"
   Write-Log "=============================================="
 }

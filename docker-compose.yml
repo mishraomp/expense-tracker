@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "${DB_PORT:-2432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -48,7 +48,7 @@ services:
       KC_HTTP_ENABLED: "true"
     command: start-dev --import-realm
     ports:
-      - "8080:8080"
+      - "2080:8080"
     volumes:
       - ./docker/keycloak/export:/opt/keycloak/data/import
     depends_on:
@@ -122,7 +122,7 @@ services:
       MB_DB_PASS: ${DB_PASSWORD:-postgres}
       MB_DB_HOST: postgres
     ports:
-      - "3001:3000"
+      - "2081:3000"
     depends_on:
       postgres:
         condition: service_healthy

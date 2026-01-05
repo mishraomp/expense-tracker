@@ -10,7 +10,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: [['list'], ['html', { open: 'never', outputFolder: join('..', 'playwright-report') }]],
   use: {
-    baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000',
+    baseURL: process.env.E2E_BASE_URL || 'http://localhost:2083',
     headless: true,
     ignoreHTTPSErrors: true,
     viewport: { width: 1280, height: 720 },

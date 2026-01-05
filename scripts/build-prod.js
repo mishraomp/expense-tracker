@@ -43,6 +43,6 @@ try {
 }
 
 console.error('\nUnable to find local `nest` or `tsc` binaries.');
-console.error('Please run `npm install` in backend to install devDependencies or run `npm ci` before `npm run build:prod`.');
+console.error('Please run `npm install` (or `npm ci`) in backend to install devDependencies before building.');
 console.error('If you intentionally built without devDependencies, provide a local `tsc` CLI in devDependencies or change your workflow to install devDependencies during build.');
 process.exit(1);

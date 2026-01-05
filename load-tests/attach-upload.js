@@ -3,7 +3,7 @@ import { check } from "k6";
 import { Trend } from "k6/metrics";
 import { randomSeed, randomString } from "k6";
 
-const baseUrl = __ENV.BASE_URL || "http://localhost:3000";
+const baseUrl = __ENV.BASE_URL || "http://localhost:2083";
 const endpoint = "/api/v1/attachments";
 
 export let options = {
