@@ -15,6 +15,10 @@ export const useSubcategories = (categoryId?: string) => {
       const response = await api.get('/subcategories', { params });
       return response.data;
     },
+    select: (subcategories) =>
+      subcategories
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })),
     staleTime: 1000 * 60 * 5,
   });
 };

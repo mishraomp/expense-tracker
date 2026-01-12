@@ -15,6 +15,10 @@ export const useCategories = (targetDate?: string) => {
       const response = await api.get('/categories', { params });
       return response.data;
     },
+    select: (categories) =>
+      categories
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })),
     staleTime: 1000 * 60 * 10, // Categories don't change often, cache for 10 minutes
   });
 };

@@ -11,6 +11,8 @@ export const useTags = () => {
       const response = await api.get('/tags');
       return response.data;
     },
+    select: (tags) =>
+      tags.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })),
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
   });
 };
