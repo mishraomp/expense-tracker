@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
+import { deriveBudgetPeriod } from '../../common/budgets/budget-select';
 import {
   SpendingOverTimeQueryDto,
   SpendingOverTimeResponseDto,
@@ -434,43 +435,48 @@ export class ReportsService {
   ): Promise<BudgetVsActualPointDto[]> {
     const { startDate, endDate, categoryId, subcategoryId } = q;
 
-    // Determine monthly budget according to precedence rules
-    // subcategoryId -> that subcategory; categoryId -> sum of subcategories if present else category; none -> sum for all categories following same rule
-    const monthlyBudgetRows: Array<{ monthly_budget: string }> = await this.prisma.$queryRaw(
-      Prisma.sql`
-        WITH cat_scope AS (
-          SELECT c."id"
-          FROM "categories" c
-          WHERE (c."user_id" = ${userId}::uuid OR c."user_id" IS NULL)
-            ${categoryId ? Prisma.sql`AND c."id" = ${categoryId}::uuid` : Prisma.empty}
-        ),
-        sub_budgets AS (
-          SELECT 
-            CASE WHEN s."budget_period" = 'annual' THEN (s."budget_amount"/12)::numeric
-                 ELSE s."budget_amount"::numeric END AS amt
-          FROM "subcategories" s
-          JOIN cat_scope cs ON cs."id" = s."category_id"
-          WHERE s."budget_amount" IS NOT NULL
-            ${subcategoryId ? Prisma.sql`AND s."id" = ${subcategoryId}::uuid` : Prisma.empty}
-        ),
-        cat_budget AS (
-          SELECT 
-            CASE WHEN c."budget_period" = 'annual' THEN (c."budget_amount"/12)::numeric
-                 ELSE c."budget_amount"::numeric END AS amt
-          FROM "categories" c
-          JOIN cat_scope cs ON cs."id" = c."id"
-          WHERE c."budget_amount" IS NOT NULL
-        )
-        SELECT 
-          COALESCE(
-            (SELECT NULLIF(SUM(sb.amt),0) FROM sub_budgets sb),
-            (SELECT NULLIF(SUM(cb.amt),0) FROM cat_budget cb),
-            0
-          )::text AS monthly_budget
-      `,
-    );
+    // Determine a monthly-equivalent budget figure according to precedence rules:
+    // subcategory budgets overlapping the requested range take precedence over
+    // category budgets (same precedence as selectEffectiveBudget in
+    // common/budgets/budget-select.ts). Reads from the `budgets` table — the
+    // category/subcategory budget_amount columns this used to read from were
+    // dropped by migration V3.2.0__separate_budget_entity.sql.
+    const rangeStart = new Date(startDate);
+    const rangeEnd = new Date(endDate);
+    const overlap = { startDate: { lte: rangeEnd }, endDate: { gte: rangeStart } };
+    const ownedOrGlobal = { OR: [{ userId }, { userId: null }] };
 
-    const monthlyBudget = monthlyBudgetRows[0]?.monthly_budget ?? '0';
+    const subBudgets = await this.prisma.budget.findMany({
+      where: subcategoryId
+        ? { ...overlap, subcategoryId }
+        : {
+            ...overlap,
+            subcategoryId: { not: null },
+            subcategory: { category: categoryId ? { id: categoryId } : ownedOrGlobal },
+          },
+    });
+
+    const catBudgets =
+      subBudgets.length > 0
+        ? []
+        : await this.prisma.budget.findMany({
+            where: categoryId
+              ? { ...overlap, categoryId }
+              : { ...overlap, categoryId: { not: null }, category: ownedOrGlobal },
+          });
+
+    const monthlyEquivalent = (b: {
+      amount: Prisma.Decimal;
+      startDate: Date;
+      endDate: Date;
+    }): number =>
+      deriveBudgetPeriod(b.startDate, b.endDate) === 'annual'
+        ? Number(b.amount) / 12
+        : Number(b.amount);
+
+    const monthlyBudget = (subBudgets.length > 0 ? subBudgets : catBudgets)
+      .reduce((sum, b) => sum + monthlyEquivalent(b), 0)
+      .toString();
 
     const filters: Prisma.Sql[] = [
       Prisma.sql`e."user_id" = ${userId}::uuid`,

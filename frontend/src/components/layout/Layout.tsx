@@ -11,6 +11,7 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const { isAuthenticated, username, logout, userInfo } = useAuthStore();
   const [showUserModal, setShowUserModal] = useState(false);
+  const [isNavigationOpen, setIsNavigationOpen] = useState(false);
 
   const initials = useMemo(() => {
     const name = username() || '';
@@ -35,49 +36,81 @@ export function Layout({ children }: LayoutProps) {
             <button
               className="navbar-toggler"
               type="button"
-              data-bs-toggle="collapse"
-              data-bs-target="#navbarNav"
+              aria-controls="navbarNav"
+              aria-expanded={isNavigationOpen}
+              aria-label="Toggle navigation"
+              onClick={() => setIsNavigationOpen((isOpen) => !isOpen)}
             >
               <span className="navbar-toggler-icon"></span>
             </button>
             <div
-              className="collapse navbar-collapse d-flex justify-content-between align-items-center"
+              className={`collapse navbar-collapse justify-content-between align-items-center ${isNavigationOpen ? 'show' : ''}`}
               id="navbarNav"
             >
               <ul className="navbar-nav">
                 <li className="nav-item">
-                  <Link to="/expenses" className="nav-link" activeProps={{ className: 'active' }}>
+                  <Link
+                    to="/expenses"
+                    className="nav-link"
+                    activeProps={{ className: 'active' }}
+                    onClick={() => setIsNavigationOpen(false)}
+                  >
                     Expenses
                   </Link>
                 </li>
                 <li className="nav-item">
-                  <Link to="/incomes" className="nav-link" activeProps={{ className: 'active' }}>
+                  <Link
+                    to="/incomes"
+                    className="nav-link"
+                    activeProps={{ className: 'active' }}
+                    onClick={() => setIsNavigationOpen(false)}
+                  >
                     Income
                   </Link>
                 </li>
                 <li className="nav-item">
-                  <Link to="/reports" className="nav-link" activeProps={{ className: 'active' }}>
+                  <Link
+                    to="/reports"
+                    className="nav-link"
+                    activeProps={{ className: 'active' }}
+                    onClick={() => setIsNavigationOpen(false)}
+                  >
                     Reports
                   </Link>
                 </li>
                 <li className="nav-item">
-                  <Link to="/categories" className="nav-link" activeProps={{ className: 'active' }}>
+                  <Link
+                    to="/categories"
+                    className="nav-link"
+                    activeProps={{ className: 'active' }}
+                    onClick={() => setIsNavigationOpen(false)}
+                  >
                     Categories
                   </Link>
                 </li>
                 <li className="nav-item">
-                  <Link to="/tags" className="nav-link" activeProps={{ className: 'active' }}>
+                  <Link
+                    to="/tags"
+                    className="nav-link"
+                    activeProps={{ className: 'active' }}
+                    onClick={() => setIsNavigationOpen(false)}
+                  >
                     Tags
                   </Link>
                 </li>
                 <li className="nav-item">
-                  <Link to="/import" className="nav-link" activeProps={{ className: 'active' }}>
+                  <Link
+                    to="/import"
+                    className="nav-link"
+                    activeProps={{ className: 'active' }}
+                    onClick={() => setIsNavigationOpen(false)}
+                  >
                     Import
                   </Link>
                 </li>
               </ul>
               {isAuthenticated && (
-                <div className="d-flex align-items-center ms-auto gap-3">
+                <div className="d-flex flex-wrap align-items-center ms-lg-auto mt-2 mt-lg-0 gap-2 gap-lg-3">
                   <button
                     type="button"
                     className="btn btn-outline-light d-flex align-items-center px-2 py-1"

@@ -89,14 +89,14 @@ export function IncomesPage() {
         : `Income for ${monthLabels[selectedMonth - 1]} ${selectedYear}`;
 
   return (
-    <div className="container-fluid py-4">
+    <div className="py-4">
       <div className="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-3">
         <div>
           <h1 className="h3 mb-1">Income Tracking</h1>
           <p className="text-muted mb-3">Manage your family income sources</p>
 
-          <div className="d-flex align-items-end flex-wrap gap-3">
-            <div>
+          <div className="d-flex flex-column flex-sm-row align-items-stretch align-items-sm-end gap-3">
+            <div className="income-filter-control">
               <label className="form-label mb-1" htmlFor="income-year">
                 Year
               </label>
@@ -123,7 +123,7 @@ export function IncomesPage() {
               </select>
             </div>
 
-            <div>
+            <div className="income-filter-control">
               <label className="form-label mb-1" htmlFor="income-month">
                 Month (optional)
               </label>

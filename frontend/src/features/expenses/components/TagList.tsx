@@ -98,6 +98,129 @@ export default function TagList() {
     setFormData({ name: '', colorCode: randomColor });
   };
 
+  const renderMobileTagList = () => (
+    <div className="tag-mobile-list d-lg-none">
+      {tags.map((tag) => {
+        const isEditing = editingTagId === tag.id;
+        const isDeleting = deleteConfirm === tag.id;
+
+        return (
+          <article className="tag-mobile-row" key={tag.id}>
+            {isEditing ? (
+              <div className="row g-2">
+                <div className="col-12">
+                  <label className="form-label small mb-1" htmlFor={`mobile-tag-name-${tag.id}`}>
+                    Name
+                  </label>
+                  <input
+                    type="text"
+                    id={`mobile-tag-name-${tag.id}`}
+                    className="form-control form-control-sm"
+                    value={formData.name}
+                    onChange={(event) => setFormData({ ...formData, name: event.target.value })}
+                    autoFocus
+                  />
+                </div>
+                <div className="col-12">
+                  <span className="form-label small mb-1 d-block">Color</span>
+                  <div className="d-flex flex-wrap gap-1 align-items-center">
+                    {COLOR_PALETTE.map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        className={`btn p-0 border-2 tag-mobile-color-swatch ${formData.colorCode === color ? 'border-dark' : 'border-light'}`}
+                        style={{ backgroundColor: color }}
+                        onClick={() => setFormData({ ...formData, colorCode: color })}
+                        title={color}
+                        aria-label={`Select color ${color}`}
+                      />
+                    ))}
+                    <label className="visually-hidden" htmlFor={`mobile-tag-color-${tag.id}`}>
+                      Custom color
+                    </label>
+                    <input
+                      type="color"
+                      id={`mobile-tag-color-${tag.id}`}
+                      className="form-control form-control-color p-0 tag-mobile-color-swatch"
+                      value={formData.colorCode}
+                      onChange={(event) =>
+                        setFormData({ ...formData, colorCode: event.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="col-12 d-flex gap-2">
+                  <button
+                    className="btn btn-success btn-sm"
+                    onClick={() => handleUpdate(tag.id)}
+                    disabled={!formData.name.trim() || updateTag.isPending}
+                  >
+                    {updateTag.isPending ? 'Saving...' : 'Save'}
+                  </button>
+                  <button className="btn btn-secondary btn-sm" onClick={resetForm}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="d-flex flex-wrap align-items-center gap-2">
+                <div className="d-flex align-items-center gap-2">
+                  <TagBadge tag={tag} size="md" />
+                  <span
+                    className="tag-mobile-row__swatch rounded"
+                    style={{ backgroundColor: tag.colorCode || '#6c757d' }}
+                    title={tag.colorCode || '#6c757d'}
+                  />
+                </div>
+                <div className="d-flex flex-wrap gap-2 ms-auto">
+                  {isDeleting ? (
+                    <>
+                      <span className="text-danger small">Delete?</span>
+                      <button
+                        className="btn btn-danger btn-sm"
+                        onClick={() => handleDelete(tag.id)}
+                        disabled={deleteTag.isPending}
+                      >
+                        {deleteTag.isPending ? '...' : 'Yes'}
+                      </button>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => setDeleteConfirm(null)}
+                      >
+                        No
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn-outline-primary btn-sm"
+                        onClick={() => startEdit(tag)}
+                        title="Edit tag"
+                        aria-label={`Edit tag ${tag.name}`}
+                      >
+                        <i className="bi bi-pencil" aria-hidden="true"></i>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline-danger btn-sm"
+                        onClick={() => setDeleteConfirm(tag.id)}
+                        title="Delete tag"
+                        aria-label={`Delete tag ${tag.name}`}
+                      >
+                        <i className="bi bi-trash" aria-hidden="true"></i>
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </article>
+        );
+      })}
+    </div>
+  );
+
   if (isLoading) {
     return (
       <div className="card">
@@ -124,7 +247,7 @@ export default function TagList() {
 
   return (
     <div className="card">
-      <div className="card-header d-flex justify-content-between align-items-center">
+      <div className="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
         <span>Your Tags ({tags.length})</span>
         {!isCreating && (
           <button className="btn btn-primary btn-sm" onClick={startCreate}>
@@ -224,130 +347,133 @@ export default function TagList() {
             <p>No tags yet. Create your first tag to start organizing expenses.</p>
           </div>
         ) : (
-          <div className="table-responsive">
-            <table className="table table-hover mb-0">
-              <thead>
-                <tr>
-                  <th>Tag</th>
-                  <th>Color</th>
-                  <th className="text-end">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tags.map((tag) => (
-                  <tr key={tag.id}>
-                    {editingTagId === tag.id ? (
-                      <>
-                        <td>
-                          <input
-                            type="text"
-                            className="form-control form-control-sm"
-                            value={formData.name}
-                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                            autoFocus
-                          />
-                        </td>
-                        <td>
-                          <div className="d-flex gap-1 flex-wrap align-items-center">
-                            {COLOR_PALETTE.map((color) => (
-                              <button
-                                key={color}
-                                type="button"
-                                className={`btn btn-sm p-0 border-2 ${formData.colorCode === color ? 'border-dark' : 'border-light'}`}
-                                style={{
-                                  width: '1.25rem',
-                                  height: '1.25rem',
-                                  backgroundColor: color,
-                                  borderRadius: '0.25rem',
-                                }}
-                                onClick={() => setFormData({ ...formData, colorCode: color })}
-                                title={color}
-                              />
-                            ))}
-                            <input
-                              type="color"
-                              className="form-control form-control-color p-0"
-                              style={{ width: '1.25rem', height: '1.25rem' }}
-                              value={formData.colorCode}
-                              onChange={(e) =>
-                                setFormData({ ...formData, colorCode: e.target.value })
-                              }
-                            />
-                          </div>
-                        </td>
-                        <td className="text-end">
-                          <button
-                            className="btn btn-success btn-sm me-1"
-                            onClick={() => handleUpdate(tag.id)}
-                            disabled={!formData.name.trim() || updateTag.isPending}
-                          >
-                            {updateTag.isPending ? 'Saving...' : 'Save'}
-                          </button>
-                          <button className="btn btn-secondary btn-sm" onClick={resetForm}>
-                            Cancel
-                          </button>
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td>
-                          <TagBadge tag={tag} size="md" />
-                        </td>
-                        <td>
-                          <span
-                            className="d-inline-block rounded"
-                            style={{
-                              width: '1.25rem',
-                              height: '1.25rem',
-                              backgroundColor: tag.colorCode || '#6c757d',
-                            }}
-                            title={tag.colorCode || '#6c757d'}
-                          ></span>
-                        </td>
-                        <td className="text-end">
-                          {deleteConfirm === tag.id ? (
-                            <>
-                              <span className="text-danger me-2 small">Delete?</span>
-                              <button
-                                className="btn btn-danger btn-sm me-1"
-                                onClick={() => handleDelete(tag.id)}
-                                disabled={deleteTag.isPending}
-                              >
-                                {deleteTag.isPending ? '...' : 'Yes'}
-                              </button>
-                              <button
-                                className="btn btn-secondary btn-sm"
-                                onClick={() => setDeleteConfirm(null)}
-                              >
-                                No
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                className="btn btn-outline-primary btn-sm me-1"
-                                onClick={() => startEdit(tag)}
-                                title="Edit tag"
-                              >
-                                <i className="bi bi-pencil"></i>
-                              </button>
-                              <button
-                                className="btn btn-outline-danger btn-sm"
-                                onClick={() => setDeleteConfirm(tag.id)}
-                                title="Delete tag"
-                              >
-                                <i className="bi bi-trash"></i>
-                              </button>
-                            </>
-                          )}
-                        </td>
-                      </>
-                    )}
+          <>
+            {renderMobileTagList()}
+            <div className="table-responsive d-none d-lg-block">
+              <table className="table table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th>Tag</th>
+                    <th>Color</th>
+                    <th className="text-end">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {tags.map((tag) => (
+                    <tr key={tag.id}>
+                      {editingTagId === tag.id ? (
+                        <>
+                          <td>
+                            <input
+                              type="text"
+                              className="form-control form-control-sm"
+                              value={formData.name}
+                              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                              autoFocus
+                            />
+                          </td>
+                          <td>
+                            <div className="d-flex gap-1 flex-wrap align-items-center">
+                              {COLOR_PALETTE.map((color) => (
+                                <button
+                                  key={color}
+                                  type="button"
+                                  className={`btn btn-sm p-0 border-2 ${formData.colorCode === color ? 'border-dark' : 'border-light'}`}
+                                  style={{
+                                    width: '1.25rem',
+                                    height: '1.25rem',
+                                    backgroundColor: color,
+                                    borderRadius: '0.25rem',
+                                  }}
+                                  onClick={() => setFormData({ ...formData, colorCode: color })}
+                                  title={color}
+                                />
+                              ))}
+                              <input
+                                type="color"
+                                className="form-control form-control-color p-0"
+                                style={{ width: '1.25rem', height: '1.25rem' }}
+                                value={formData.colorCode}
+                                onChange={(e) =>
+                                  setFormData({ ...formData, colorCode: e.target.value })
+                                }
+                              />
+                            </div>
+                          </td>
+                          <td className="text-end">
+                            <button
+                              className="btn btn-success btn-sm me-1"
+                              onClick={() => handleUpdate(tag.id)}
+                              disabled={!formData.name.trim() || updateTag.isPending}
+                            >
+                              {updateTag.isPending ? 'Saving...' : 'Save'}
+                            </button>
+                            <button className="btn btn-secondary btn-sm" onClick={resetForm}>
+                              Cancel
+                            </button>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td>
+                            <TagBadge tag={tag} size="md" />
+                          </td>
+                          <td>
+                            <span
+                              className="d-inline-block rounded"
+                              style={{
+                                width: '1.25rem',
+                                height: '1.25rem',
+                                backgroundColor: tag.colorCode || '#6c757d',
+                              }}
+                              title={tag.colorCode || '#6c757d'}
+                            ></span>
+                          </td>
+                          <td className="text-end">
+                            {deleteConfirm === tag.id ? (
+                              <>
+                                <span className="text-danger me-2 small">Delete?</span>
+                                <button
+                                  className="btn btn-danger btn-sm me-1"
+                                  onClick={() => handleDelete(tag.id)}
+                                  disabled={deleteTag.isPending}
+                                >
+                                  {deleteTag.isPending ? '...' : 'Yes'}
+                                </button>
+                                <button
+                                  className="btn btn-secondary btn-sm"
+                                  onClick={() => setDeleteConfirm(null)}
+                                >
+                                  No
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  className="btn btn-outline-primary btn-sm me-1"
+                                  onClick={() => startEdit(tag)}
+                                  title="Edit tag"
+                                >
+                                  <i className="bi bi-pencil"></i>
+                                </button>
+                                <button
+                                  className="btn btn-outline-danger btn-sm"
+                                  onClick={() => setDeleteConfirm(tag.id)}
+                                  title="Delete tag"
+                                >
+                                  <i className="bi bi-trash"></i>
+                                </button>
+                              </>
+                            )}
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </div>

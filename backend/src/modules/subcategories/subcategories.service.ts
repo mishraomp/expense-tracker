@@ -5,7 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateSubcategoryDto, UpdateSubcategoryDto } from './dto';
+import { CreateSubcategoryDto, UpdateSubcategoryDto } from './subcategories.dto';
 import { Subcategory } from './subcategory.entity';
 import {
   getSubcategoryBudgetForDisplay,

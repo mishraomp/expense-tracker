@@ -572,6 +572,201 @@ export default function ExpensesTable({
     </tr>
   );
 
+  const renderMobileFilters = () => (
+    <section className="expenses-mobile-filters d-xxl-none" aria-label="Expense filters">
+      <div className="row g-2">
+        <div className="col-6">
+          <label className="form-label small mb-1" htmlFor="mobile-start-date">
+            From
+          </label>
+          <input
+            type="date"
+            id="mobile-start-date"
+            className="form-control form-control-sm"
+            value={startDateValue}
+            onChange={handleStartDateChange}
+          />
+        </div>
+        <div className="col-6">
+          <label className="form-label small mb-1" htmlFor="mobile-end-date">
+            To
+          </label>
+          <input
+            type="date"
+            id="mobile-end-date"
+            className="form-control form-control-sm"
+            value={endDateValue}
+            onChange={handleEndDateChange}
+          />
+        </div>
+        <div className="col-12 col-sm-6">
+          <label className="form-label small mb-1" htmlFor="mobile-category-filter">
+            Category
+          </label>
+          <select
+            id="mobile-category-filter"
+            className="form-select form-select-sm"
+            value={filters.categoryId || ''}
+            onChange={handleCategorySelectChange}
+          >
+            <option value="">All categories</option>
+            {categories?.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="col-12 col-sm-6">
+          <label className="form-label small mb-1" htmlFor="mobile-subcategory-filter">
+            Subcategory
+          </label>
+          <select
+            id="mobile-subcategory-filter"
+            className="form-select form-select-sm"
+            value={filters.subcategoryId || ''}
+            onChange={handleSubcategorySelectChange}
+            disabled={!filters.categoryId}
+          >
+            <option value="">All subcategories</option>
+            {(subcategories || [])
+              .filter((subcategory) => subcategory.categoryId === filters.categoryId)
+              .map((subcategory) => (
+                <option key={subcategory.id} value={subcategory.id}>
+                  {subcategory.name}
+                </option>
+              ))}
+          </select>
+        </div>
+        <div className="col-12">
+          <label className="form-label small mb-1" htmlFor="mobile-item-name-filter">
+            Item name
+          </label>
+          <input
+            type="text"
+            id="mobile-item-name-filter"
+            className="form-control form-control-sm"
+            placeholder="Search line items"
+            value={itemNameInput}
+            onChange={(event) => setItemNameInput(event.target.value)}
+          />
+        </div>
+        <div className="col-12">
+          <label className="form-label small mb-1">Tags</label>
+          <TagFilterSelect
+            tags={allTags}
+            selectedTagIds={filters.tagIds || []}
+            onChange={handleTagFilterChange}
+            placeholder="Filter by tag..."
+          />
+        </div>
+        {hasActiveFilters && (
+          <div className="col-12">
+            <button className="btn btn-outline-secondary btn-sm" onClick={handleClearFilters}>
+              Clear filters
+            </button>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+
+  const renderMobileExpenseList = () => (
+    <div className="expenses-mobile-list">
+      {(data?.data || []).map((expense) => {
+        const category = expense.category;
+        const subcategory = expense.subcategory;
+        const itemCount = expense.itemCount ?? expense.items?.length ?? 0;
+        const tags = expense.tags || [];
+
+        return (
+          <article className="expense-mobile-row" key={expense.id}>
+            <div className="expense-mobile-row__header d-flex justify-content-between align-items-center gap-2">
+              <span className="text-nowrap">{toYYYYMMDD(expense.date)}</span>
+              <strong className="text-danger text-nowrap">${expense.amount.toFixed(2)}</strong>
+            </div>
+
+            <div className="expense-mobile-row__details d-flex flex-wrap align-items-center gap-2 mt-2">
+              {category ? (
+                <button
+                  type="button"
+                  className="badge text-white category-badge expenses-mobile-row__category"
+                  style={{ backgroundColor: category.colorCode || '#6c757d' }}
+                  onClick={(event) => handleCategoryFilter(category.id, event)}
+                  title={`Filter by ${category.name}`}
+                >
+                  {category.name}
+                </button>
+              ) : (
+                <span className="badge bg-secondary">Uncategorized</span>
+              )}
+              {subcategory && (
+                <button
+                  type="button"
+                  className="badge text-white badge-subcategory expenses-mobile-row__category"
+                  style={{ backgroundColor: category?.colorCode || '#6c757d' }}
+                  onClick={(event) => handleSubcategoryFilter(subcategory.id, category?.id, event)}
+                  title={`Filter by ${subcategory.name}`}
+                >
+                  {subcategory.name}
+                </button>
+              )}
+              {itemCount > 0 && (
+                <span className="badge bg-info text-dark" title={`${itemCount} line item(s)`}>
+                  <i className="bi bi-list-ul me-1" aria-hidden="true"></i>
+                  {itemCount}
+                </span>
+              )}
+              {(expense.attachmentCount || 0) > 0 && (
+                <span className="badge bg-light text-dark" title="Active attachments">
+                  <i className="bi bi-paperclip me-1" aria-hidden="true"></i>
+                  {expense.attachmentCount}
+                </span>
+              )}
+            </div>
+
+            {expense.description && (
+              <p className="expense-mobile-row__description text-muted small mb-0 mt-2">
+                {expense.description}
+              </p>
+            )}
+
+            <div className="d-flex flex-wrap align-items-center gap-2 mt-2">
+              {tags.map((tag) => (
+                <TagBadge
+                  key={tag.id}
+                  tag={tag}
+                  size="sm"
+                  onClick={() => handleTagFilter(tag.id)}
+                />
+              ))}
+              <div className="expense-mobile-row__actions d-flex gap-2 ms-auto">
+                <button
+                  type="button"
+                  className="btn btn-outline-primary btn-sm"
+                  onClick={() => handleEdit(expense)}
+                  aria-label={`Edit expense from ${toYYYYMMDD(expense.date)}`}
+                  title="Edit expense"
+                >
+                  <i className="bi bi-pencil" aria-hidden="true"></i>
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline-danger btn-sm"
+                  onClick={() => handleDeleteClick(expense)}
+                  aria-label={`Delete expense from ${toYYYYMMDD(expense.date)}`}
+                  title="Delete expense"
+                >
+                  <i className="bi bi-trash" aria-hidden="true"></i>
+                </button>
+              </div>
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+
   if (isLoading) {
     return (
       <div className="card">
@@ -601,9 +796,9 @@ export default function ExpensesTable({
   return (
     <>
       <div className="card">
-        <div className="card-header py-2 d-flex justify-content-between align-items-center">
+        <div className="card-header py-2 d-flex flex-wrap justify-content-between align-items-center gap-2">
           <h6 className="mb-0">Expenses</h6>
-          <div className="d-flex align-items-center gap-3">
+          <div className="d-flex flex-wrap justify-content-end align-items-center gap-2 gap-sm-3">
             <span className="text-muted small">
               Total Amount:{' '}
               <strong className="text-danger">
@@ -620,7 +815,22 @@ export default function ExpensesTable({
           </div>
         </div>
         <div className="card-body p-0">
-          <div className="table-responsive">
+          {renderMobileFilters()}
+          <div className="d-xxl-none">
+            {data?.data.length ? (
+              renderMobileExpenseList()
+            ) : (
+              <div className="text-center py-4">
+                <h6 className="text-muted mb-1">No expenses found</h6>
+                <p className="text-muted small mb-0">
+                  {hasActiveFilters
+                    ? 'Try adjusting your filters or clear them to see all expenses.'
+                    : 'Start by adding your first expense above.'}
+                </p>
+              </div>
+            )}
+          </div>
+          <div className="table-responsive d-none d-xxl-block">
             <table className="table table-hover table-sm mb-0 expenses-table">
               <thead>
                 {table.getHeaderGroups().map((headerGroup) => (
@@ -729,7 +939,7 @@ export default function ExpensesTable({
                   </span>
                 </div>
                 {table.getPageCount() > 1 && (
-                  <nav aria-label="Expense table pagination">
+                  <nav className="pagination-scroll" aria-label="Expense table pagination">
                     <ul className="pagination pagination-sm mb-0">
                       <li className={`page-item ${!table.getCanPreviousPage() ? 'disabled' : ''}`}>
                         <button

@@ -201,9 +201,7 @@ export class IncomesService {
 
     const response = IncomeResponseDto.fromPrisma(income, activeCount);
 
-    // Include attachments in detail response list (camelCase from service)
-    const attachments = await this.attachmentsService.listAttachments('income', id);
-    (response as any).attachments = attachments;
+    response.attachments = await this.attachmentsService.listAttachments('income', id);
 
     return response;
   }

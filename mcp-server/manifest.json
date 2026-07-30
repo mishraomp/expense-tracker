@@ -1,0 +1,41 @@
+{
+  "manifest_version": "0.2",
+  "name": "expense-tracker-mcp-server",
+  "display_name": "Expense Tracker",
+  "version": "1.0.0",
+  "description": "Add, update, and remove expenses in your personal Expense Tracker app",
+  "author": {
+    "name": "Omprakash Mishra"
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/dist/index.js"
+      ],
+      "env": {
+        "EXPENSE_API_BASE_URL": "${user_config.api_base_url}",
+        "MCP_BYPASS_SECRET": "${user_config.bypass_secret}"
+      }
+    }
+  },
+  "user_config": {
+    "api_base_url": {
+      "type": "string",
+      "title": "Expense Tracker API URL",
+      "description": "Base URL of your running expense-tracker backend",
+      "default": "http://localhost:3000/api/v1",
+      "required": true
+    },
+    "bypass_secret": {
+      "type": "string",
+      "title": "MCP Bypass Secret",
+      "description": "Must exactly match MCP_LOCAL_BYPASS_SECRET in backend/.env. Never set this on a backend reachable by anyone but you.",
+      "sensitive": true,
+      "required": true
+    }
+  },
+  "license": "MIT"
+}

@@ -22,6 +22,13 @@ import { extname } from 'path';
 export class ImportController {
   constructor(private readonly importService: ImportService) {}
 
+  /**
+   * Accepts one .csv/.xlsx/.xls file, max 10MB. Expects columns date, amount, category,
+   * description (case-insensitive header matching). category must case-insensitively match
+   * an existing predefined or user-owned category name, or that row fails. Returns 202
+   * immediately with status='processing' — validation and insert happen asynchronously; poll
+   * GET /import/{sessionId} for the final result.
+   */
   @Post('upload')
   @HttpCode(HttpStatus.ACCEPTED)
   @UseInterceptors(
@@ -92,6 +99,11 @@ export class ImportController {
     return ImportSessionResponseDto.fromEntity(session);
   }
 
+  /**
+   * Gets an import session's status and results. Both 'session not found' and 'session
+   * belongs to another user' return HTTP 400 (not 404/403) — the two cases aren't
+   * distinguishable by status code.
+   */
   @Get(':sessionId')
   async getSession(
     @Param('sessionId') sessionId: string,
@@ -111,6 +123,20 @@ export class ImportController {
     return ImportSessionResponseDto.fromEntity(session);
   }
 
+  /**
+   * A DIFFERENT import contract from /import/upload: accepts a .zip file, max 50MB,
+   * containing up to three optional entries (matched case-insensitively):
+   * categories.csv (name, type, color_code, icon, budget_amount, budget_period — rows with
+   * type set to anything other than blank/'custom' are silently skipped),
+   * subcategories.csv (category, name, budget_amount, budget_period — silently skipped if the
+   * named category isn't found),
+   * expenses.csv (date, amount, category, subcategory, description, status, merchant_name —
+   * silently skipped if amount/date/category is missing or category isn't found; exact
+   * duplicate rows by userId+amount+date+description are silently skipped).
+   * Processing here is SYNCHRONOUS (unlike /import/upload) and returns a plain
+   * {categoriesCreated, categoriesUpdated, subcategoriesUpserted, expensesCreated} summary
+   * directly — there's no session to poll.
+   */
   @Post('full')
   @HttpCode(HttpStatus.ACCEPTED)
   @UseInterceptors(

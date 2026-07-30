@@ -10,6 +10,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import * as jwt from 'jsonwebtoken';
 import * as jwksClient from 'jwks-rsa';
+import { timingSafeEqual } from 'crypto';
 import { UsersService } from '../../modules/users/users.service';
 
 interface KeycloakTokenPayload {
@@ -65,6 +66,12 @@ export class KeycloakAuthGuard implements CanActivate, OnModuleInit {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
+
+    const bypassed = await this.tryLocalBypass(request);
+    if (bypassed) {
+      return true;
+    }
+
     const authHeader = request.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -100,6 +107,56 @@ export class KeycloakAuthGuard implements CanActivate, OnModuleInit {
       this.logger.error(`Token validation failed: ${error.message}`);
       throw new UnauthorizedException('Invalid or expired token');
     }
+  }
+
+  /**
+   * Local-only escape hatch for the expense-tracker MCP server: a fixed shared
+   * secret takes the place of a real Keycloak token so a stdio-spawned local
+   * process never has to hold a password or manage token refresh. Only active
+   * when MCP_LOCAL_BYPASS_SECRET is set — never set this outside local dev.
+   */
+  private async tryLocalBypass(request: any): Promise<boolean> {
+    const bypassSecret = this.configService.get<string>('MCP_LOCAL_BYPASS_SECRET');
+    const providedSecret = request.headers['x-mcp-bypass-secret'];
+
+    if (!bypassSecret || typeof providedSecret !== 'string') {
+      return false;
+    }
+    if (!this.secretsMatch(providedSecret, bypassSecret)) {
+      return false;
+    }
+
+    const bypassEmail = this.configService.get<string>('MCP_LOCAL_BYPASS_USER_EMAIL');
+    if (!bypassEmail) {
+      throw new UnauthorizedException('MCP_LOCAL_BYPASS_USER_EMAIL is not configured');
+    }
+
+    const user = await this.usersService.findByEmail(bypassEmail);
+    if (!user) {
+      throw new UnauthorizedException(
+        `MCP bypass user '${bypassEmail}' not found - log in via the web app once first`,
+      );
+    }
+
+    this.logger.warn(`Request authenticated via MCP local bypass as ${user.email}`);
+    request.user = {
+      sub: user.id,
+      keycloakSub: user.keycloakSub,
+      email: user.email,
+      name: undefined,
+      given_name: user.firstName,
+      family_name: user.lastName,
+    };
+    return true;
+  }
+
+  private secretsMatch(provided: string, expected: string): boolean {
+    const providedBuf = Buffer.from(provided);
+    const expectedBuf = Buffer.from(expected);
+    if (providedBuf.length !== expectedBuf.length) {
+      return false;
+    }
+    return timingSafeEqual(providedBuf, expectedBuf);
   }
 
   private async validateToken(token: string): Promise<KeycloakTokenPayload> {

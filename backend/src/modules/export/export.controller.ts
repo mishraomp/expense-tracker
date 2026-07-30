@@ -8,6 +8,14 @@ import type { Response } from 'express';
 export class ExportController {
   constructor(private readonly exportService: ExportService) {}
 
+  /**
+   * Streams a ZIP (binary, not JSON — sent via a raw response, bypassing Nest's normal
+   * response pipeline) containing exactly three CSVs: categories.csv (name, type, color_code,
+   * icon, budget_amount, budget_period), subcategories.csv (category, name, budget_amount,
+   * budget_period), expenses.csv (date, amount, category, subcategory, description, status,
+   * source, merchant_name) — scoped to the caller's own data plus global predefined
+   * categories. No query parameters exist — this always exports everything.
+   */
   @Get('full')
   @Header('Content-Type', 'application/zip')
   async fullExport(@Request() req: any, @Res() res: Response) {

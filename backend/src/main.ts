@@ -60,6 +60,11 @@ async function bootstrap() {
     });
   }
 
+  // Lightweight liveness endpoint (unprefixed, used by the container healthcheck)
+  app.use('/health', (_req, res) => {
+    res.status(200).json({ status: 'ok' });
+  });
+
   // Global validation pipe
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),

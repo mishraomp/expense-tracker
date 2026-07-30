@@ -125,7 +125,7 @@ prisma = {
       });
     },
     findFirst: async ({ where, orderBy }: any) => {
-      let filtered = budgets.filter((b) => {
+      const filtered = budgets.filter((b) => {
         if (where?.categoryId && b.categoryId !== where.categoryId) return false;
         if (where?.subcategoryId && b.subcategoryId !== where.subcategoryId) return false;
         if (where?.startDate?.lte) {

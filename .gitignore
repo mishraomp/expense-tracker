@@ -12,6 +12,7 @@ coverage/
 dist/
 build/
 *.tsbuildinfo
+*.mcpb
 
 # Environment variables
 .env
@@ -65,6 +66,13 @@ prisma/dev.db-journal
 backend/uploads/*
 !backend/uploads/.gitkeep
 backups
+
+# Disaster recovery — rclone Google Drive credentials, never commit
+docker/postgres/backup/rclone.conf
 **/.tanstack/**
 backend/public/**
 .expense-tracker-pids.json
+.tokensave
+.copilot-memory
+.claude
+.codebase-memory

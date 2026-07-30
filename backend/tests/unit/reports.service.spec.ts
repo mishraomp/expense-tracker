@@ -139,10 +139,19 @@ describe('ReportsService', () => {
   });
 
   it('getBudgetVsActual returns budget points per month', async () => {
-    const monthlyBudget = [{ monthly_budget: '100.00' }];
+    const categoryBudgets = [
+      {
+        amount: new Decimal('100.00'),
+        startDate: new Date('2025-01-01'),
+        endDate: new Date('2025-01-31'),
+      },
+    ];
     const rows = [{ bucket: new Date('2025-01-01'), actual: '10' }];
     const mockPrisma = {
-      $queryRaw: vi.fn().mockResolvedValueOnce(monthlyBudget).mockResolvedValueOnce(rows),
+      budget: {
+        findMany: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce(categoryBudgets),
+      },
+      $queryRaw: vi.fn().mockResolvedValueOnce(rows),
     } as any;
     const svc = new (ReportsService as any)(mockPrisma);
     const res = await svc.getBudgetVsActual('user-1', {
@@ -150,7 +159,7 @@ describe('ReportsService', () => {
       endDate: '2025-01-31',
     } as any);
     expect(res).toHaveLength(1);
-    expect(res[0].budgetAmount).toBe('100.00');
+    expect(res[0].budgetAmount).toBe('100');
   });
 
   it('getCategoryBudgetReport maps rows to DTO', async () => {
@@ -271,13 +280,22 @@ describe('ReportsService', () => {
     });
 
     it('getBudgetVsActual correctly aggregates monthly budget from budget table', async () => {
-      const monthlyBudget = [{ monthly_budget: '200.00' }];
+      const categoryBudgets = [
+        {
+          amount: new Decimal('200.00'),
+          startDate: new Date('2025-01-01'),
+          endDate: new Date('2025-01-31'),
+        },
+      ];
       const rows = [
         { bucket: new Date('2025-01-01'), actual: '75' },
         { bucket: new Date('2025-02-01'), actual: '50' },
       ];
       const mockPrisma = {
-        $queryRaw: vi.fn().mockResolvedValueOnce(monthlyBudget).mockResolvedValueOnce(rows),
+        budget: {
+          findMany: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce(categoryBudgets),
+        },
+        $queryRaw: vi.fn().mockResolvedValueOnce(rows),
       } as any;
       const svc = new (ReportsService as any)(mockPrisma);
       const res = await svc.getBudgetVsActual('user-1', {
@@ -285,8 +303,8 @@ describe('ReportsService', () => {
         endDate: '2025-02-28',
       } as any);
       expect(res).toHaveLength(2);
-      expect(res[0].budgetAmount).toBe('200.00');
-      expect(res[1].budgetAmount).toBe('200.00');
+      expect(res[0].budgetAmount).toBe('200');
+      expect(res[1].budgetAmount).toBe('200');
     });
   });
 });

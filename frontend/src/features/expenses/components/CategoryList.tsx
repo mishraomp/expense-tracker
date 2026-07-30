@@ -96,7 +96,7 @@ export default function CategoryList() {
 
   return (
     <div className="card">
-      <div className="card-header d-flex justify-content-between align-items-center">
+      <div className="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
         <h5 className="mb-0">Categories</h5>
         <button className="btn btn-primary" onClick={() => setOpen(true)}>
           New Category
@@ -107,31 +107,31 @@ export default function CategoryList() {
         <div className="mb-3 p-3 bg-light rounded">
           <label className="form-label fw-semibold mb-2">Filter Budgets by Date Range:</label>
           <div className="d-flex flex-wrap gap-2 align-items-center mb-2">
-            <div className="btn-group btn-group-sm" role="group" aria-label="Quick date presets">
+            <div className="d-flex flex-wrap gap-2" role="group" aria-label="Quick date presets">
               <button
                 type="button"
-                className="btn btn-outline-secondary"
+                className="btn btn-outline-secondary btn-sm"
                 onClick={() => setPreset('thisMonth')}
               >
                 This Month
               </button>
               <button
                 type="button"
-                className="btn btn-outline-secondary"
+                className="btn btn-outline-secondary btn-sm"
                 onClick={() => setPreset('thisYear')}
               >
                 This Year
               </button>
               <button
                 type="button"
-                className="btn btn-outline-secondary"
+                className="btn btn-outline-secondary btn-sm"
                 onClick={() => setPreset('lastYear')}
               >
                 Last Year
               </button>
               <button
                 type="button"
-                className="btn btn-outline-secondary"
+                className="btn btn-outline-secondary btn-sm"
                 onClick={() => setPreset('all')}
               >
                 All Time
@@ -139,28 +139,26 @@ export default function CategoryList() {
             </div>
           </div>
           <div className="d-flex flex-wrap gap-2 align-items-center">
-            <div className="d-flex align-items-center gap-2">
+            <div className="category-date-control d-flex align-items-center gap-2">
               <label htmlFor="startDate" className="form-label mb-0 small">
                 From:
               </label>
               <input
                 type="date"
                 id="startDate"
-                className="form-control form-control-sm"
-                style={{ width: 'auto' }}
+                className="form-control form-control-sm category-date-input"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
               />
             </div>
-            <div className="d-flex align-items-center gap-2">
+            <div className="category-date-control d-flex align-items-center gap-2">
               <label htmlFor="endDate" className="form-label mb-0 small">
                 To:
               </label>
               <input
                 type="date"
                 id="endDate"
-                className="form-control form-control-sm"
-                style={{ width: 'auto' }}
+                className="form-control form-control-sm category-date-input"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
               />
@@ -187,7 +185,7 @@ export default function CategoryList() {
               <ul className="list-group">
                 {predefined.map((c) => (
                   <li key={c.id} className="list-group-item">
-                    <div className="d-flex justify-content-between align-items-center">
+                    <div className="d-flex flex-wrap justify-content-between align-items-center gap-2">
                       <div className="d-flex flex-column">
                         <span>
                           <span
@@ -207,7 +205,7 @@ export default function CategoryList() {
                           </span>
                         )}
                       </div>
-                      <div className="d-flex gap-2 align-items-center">
+                      <div className="d-flex flex-wrap gap-2 align-items-center ms-auto">
                         <span className="badge bg-secondary">predefined</span>
                         <div className="btn-group btn-group-sm">
                           <button
@@ -239,7 +237,7 @@ export default function CategoryList() {
               <ul className="list-group">
                 {custom.map((c) => (
                   <li key={c.id} className="list-group-item">
-                    <div className="d-flex justify-content-between align-items-center">
+                    <div className="d-flex flex-wrap justify-content-between align-items-center gap-2">
                       <div className="d-flex flex-column">
                         <span>
                           <span
@@ -259,7 +257,7 @@ export default function CategoryList() {
                           </span>
                         )}
                       </div>
-                      <div className="btn-group btn-group-sm">
+                      <div className="btn-group btn-group-sm ms-auto">
                         <button
                           className="btn btn-outline-secondary"
                           onClick={() =>

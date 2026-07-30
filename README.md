@@ -18,15 +18,16 @@ Modern full-stack personal expense & income tracking application with reporting,
 7. Database & Migrations
 8. Authentication (Keycloak)
 9. Managing Services
-10. Data Model Summary
-11. Reports & Analytics
-12. Import & Export
-13. Testing
-14. Accessibility & UI
-15. Performance & Notes
-16. Roadmap
-17. Contributing
-18. License
+10. Disaster Recovery
+11. Data Model Summary
+12. Reports & Analytics
+13. Import & Export
+14. Testing
+15. Accessibility & UI
+16. Performance & Notes
+17. Roadmap
+18. Contributing
+19. License
 
 ---
 ## 1. Overview
@@ -104,6 +105,7 @@ Typical vars (use `.env` or pass via Docker Compose):
 - `KEYCLOAK_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET`
 - `PORT` – Backend port
 - Frontend Vite envs: `VITE_API_BASE_URL`, `VITE_KEYCLOAK_URL`, `VITE_KEYCLOAK_REALM`, `VITE_KEYCLOAK_CLIENT_ID`
+- `RCLONE_REMOTE`, `RCLONE_BACKUP_FOLDER`, `BACKUP_RETENTION_DAYS` – disaster recovery, see § 10
 
 Never commit secrets to the repository. Use a `.env.example` if helpful.
 
@@ -135,7 +137,45 @@ Use the provided PowerShell helper for a simple developer start/stop:
 ```
 
 ---
-## 10. Data Model Summary
+## 10. Disaster Recovery
+The `pg-backup` service backs up the **entire Postgres cluster** (`expense_tracker`, `keycloak`, and `metabase` — one `pg_dumpall`, not just the app database) to Google Drive via `rclone`, on a daily cron schedule with 7-day rotation, and can restore from any specific prior backup.
+
+### One-time setup
+1. Build the backup image once (and again after any change to `docker/postgres/backup/Dockerfile`, `backup.sh`, or `backup.cron`):
+   ```powershell
+   docker build -f docker/postgres/backup/Dockerfile -t expense-tracker-pg-backup:latest docker/postgres/backup
+   ```
+2. Configure Google Drive access — create `docker/postgres/backup/rclone.conf` **before** ever running `docker compose up -d pg-backup` (Docker/Podman otherwise creates an empty directory at that path instead of erroring). If you already have a working rclone remote from another project, just copy that file here — no need to repeat the browser OAuth flow. Otherwise, configure one fresh:
+   ```powershell
+   rclone config --config docker\postgres\backup\rclone.conf config
+   ```
+3. Set `RCLONE_REMOTE` in `.env` to whatever you actually named the remote (see § 6).
+
+### Running backups
+```powershell
+./manage-services.ps1 start   # starts pg-backup with everything else; cron fires daily at 10:00 container time
+```
+Ad-hoc backup, without waiting for the schedule:
+```powershell
+docker compose run --rm pg-backup /scripts/backup.sh
+```
+Cadence tracks how often the container is actually running, not a guaranteed wall-clock schedule — same caveat as any dev-machine cron job.
+
+### Listing and restoring
+```powershell
+docker compose run --rm pg-backup sh -c 'rclone lsf "$RCLONE_REMOTE:$RCLONE_BACKUP_FOLDER"'
+docker compose run --rm pg-backup /scripts/backup.sh --restore --date=YYYY-MM-DD --yes
+```
+Restore pulls the file from Google Drive automatically if it isn't already present in `./backups`, and **replaces all three databases**. Omitting `--yes` prints a warning describing exactly what would be overwritten and exits without touching anything.
+
+### What this deliberately does not cover
+`ENCRYPTION_KEY` (decrypts stored Google Drive OAuth refresh tokens in the `user_drive_auth` table) is excluded from the automated backup on purpose — bundling a master key next to the data it decrypts is a needless blast-radius risk. Record it separately (e.g. a password manager). If it's ever missing or different after a restore, affected users simply need to reconnect their Google Drive — not a data-loss event, since their actual attachments remain safely in their own Drive regardless.
+
+### Rotation
+`backup.sh` deletes Drive backups older than `BACKUP_RETENTION_DAYS` (default 7) immediately after each successful upload — a failed upload never triggers rotation, and the newest backup can never prune itself. `scripts/cleanup-backups.ps1` separately handles local-disk `./backups` cleanup (also 7-day default) — unrelated to, and complementary with, the Drive-side rotation above.
+
+---
+## 11. Data Model Summary
 Key entities (Prisma):
 - `User`
 - `Category` (color, budgets)
@@ -148,18 +188,18 @@ Key entities (Prisma):
 Notes: Recurring expenses are implemented by generating multiple expense rows at creation (no separate Recurrence entity). Budgeting fields exist, and UI/analytics are planned.
 
 ---
-## 11. Reports & Analytics
+## 12. Reports & Analytics
 Implemented:
 - Yearly / Monthly Income vs Expense bar chart
 - Click a month to drill-down into a subcategory pie chart
 - D3 charts include accessible semantics (`<title>` and `<desc>`)
 
 ---
-## 12. Import & Export
+## 13. Import & Export
 CSV import pipeline exists with import session tracking. Deduplication logic has been implemented (`V2.2.0__expense_dedup.sql`). Export helpers produce CSV for selected time ranges.
 
 ---
-## 13. Testing
+## 14. Testing
 Run tests locally for each side:
 ```powershell
 cd backend; npm test
@@ -169,25 +209,25 @@ cd ../frontend; npm test
 Backend uses Vitest + in-memory mocks for many unit tests. Frontend uses Vitest + Testing Library.
 
 ---
-## 14. Accessibility & UI
+## 15. Accessibility & UI
 - UI uses Bootstrap + custom Sass utilities in `frontend/src/styles/theme.scss`.
 - ARIA attributes and keyboard focus handling for dialogs.
 
 ---
-## 15. Performance & Notes
+## 16. Performance & Notes
 - Memoize table columns; TanStack Table recommended patterns are used
 - The Expense table supports multi-column sorting (primary: amount desc, secondary: date desc) and server-side pagination to scale lists
 - D3 charts use `viewBox` for responsive scaling
 
 ---
-## 16. Roadmap / Ideas
+## 17. Roadmap / Ideas
 - Budget CRUD and variance insights
 - Per-subcategory alerts (budget thresholds)
 - Multi-currency support (future)
 - Export charts as PDF/PNG
 
 ---
-## 17. Contributing
+## 18. Contributing
 1. Fork & clone
 2. Make a branch: `git switch -c feature/...`
 3. Run services, implement code & tests
@@ -195,7 +235,7 @@ Backend uses Vitest + in-memory mocks for many unit tests. Frontend uses Vitest 
 5. Open PR and include screenshots for UI changes
 
 ---
-## 18. License
+## 19. License
 See `LICENSE` in the repository root.
 
 ---

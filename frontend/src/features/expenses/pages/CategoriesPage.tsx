@@ -2,7 +2,7 @@ import CategoryList from '../components/CategoryList';
 
 export default function CategoriesPage() {
   return (
-    <div className="container-fluid py-4">
+    <div className="py-4">
       <div className="row mb-4">
         <div className="col">
           <h1>Categories</h1>

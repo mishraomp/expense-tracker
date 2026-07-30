@@ -247,6 +247,40 @@ canvas {
   width: 12.5rem;
 }
 
+// Category date controls retain their compact desktop layout, then fill a mobile row.
+.category-date-control {
+  min-width: 0;
+}
+
+.category-date-input {
+  width: auto;
+  min-width: 0;
+}
+
+.income-filter-control {
+  min-width: 10rem;
+}
+
+.pagination-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+
+  .pagination {
+    flex-wrap: nowrap;
+  }
+}
+
+@media (max-width: 36rem) {
+  .category-date-control {
+    flex: 1 1 100%;
+  }
+
+  .category-date-input {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+}
+
 // Table with auto layout
 .table-auto {
   table-layout: auto;
@@ -464,6 +498,72 @@ canvas {
       }
     }
   }
+}
+
+.expenses-mobile-filters {
+  padding: 0.75rem;
+  border-bottom: 0.0625rem solid var(--bs-border-color);
+}
+
+.expenses-mobile-list {
+  padding-inline: 0.75rem;
+}
+
+.expense-mobile-row {
+  min-width: 0;
+  padding-block: 0.875rem;
+  border-bottom: 0.0625rem solid var(--bs-border-color);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.expense-mobile-row__category {
+  max-width: 100%;
+}
+
+.expense-mobile-row__description {
+  overflow-wrap: anywhere;
+}
+
+.expense-mobile-row__actions {
+  flex-shrink: 0;
+}
+
+.income-mobile-row {
+  min-width: 0;
+  padding-block: 0.875rem;
+  border-bottom: 0.0625rem solid var(--bs-border-color);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.income-mobile-row__description {
+  overflow-wrap: anywhere;
+}
+
+.tag-mobile-row {
+  min-width: 0;
+  padding-block: 0.75rem;
+  border-bottom: 0.0625rem solid var(--bs-border-color);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.tag-mobile-row__swatch,
+.tag-mobile-color-swatch {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+}
+
+.tag-mobile-color-swatch {
+  border-radius: 0.25rem;
 }
 
 // Item list tables responsive behavior

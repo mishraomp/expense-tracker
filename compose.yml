@@ -43,6 +43,7 @@ services:
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
       KC_DB_USERNAME: postgres
       KC_DB_PASSWORD: postgres
+      KC_HOSTNAME: http://localhost:8080
       KC_HOSTNAME_STRICT: "false"
       KC_HOSTNAME_STRICT_HTTPS: "false"
       KC_HTTP_ENABLED: "true"
@@ -69,12 +70,14 @@ services:
   api:
     build:
       context: ./backend
-      dockerfile: docker/Dockerfile
     container_name: expense-tracker-api
+    env_file:
+      - ./backend/.env
     environment:
       NODE_ENV: ${NODE_ENV:-development}
       PORT: ${API_PORT:-3000}
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-expense_tracker}?schema=public
+      KEYCLOAK_URL: http://localhost:8080
       JWT_SECRET: ${JWT_SECRET:-defaultsecret}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
       PLAID_CLIENT_ID: ${PLAID_CLIENT_ID:-default}
@@ -86,13 +89,15 @@ services:
     volumes:
       - ./backend/src:/app/src
       - ./backend/prisma:/app/prisma
+    extra_hosts:
+      - "localhost:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
       flyway:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -100,7 +105,6 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: docker/Dockerfile
     container_name: expense-tracker-frontend
     environment:
       VITE_API_URL: ${VITE_API_URL:-http://localhost:3000/api/v1}
@@ -109,6 +113,22 @@ services:
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/public:/app/public
+    depends_on:
+      - api
+
+  mcp-server:
+    build:
+      context: ./mcp-server
+    container_name: expense-tracker-mcp-server
+    env_file:
+      - ./mcp-server/.env
+    environment:
+      EXPENSE_API_BASE_URL: http://api:3000/api/v1
+      MCP_HTTP_HOST: 0.0.0.0
+    ports:
+      - "3400:3400"
+    volumes:
+      - ./mcp-server/src:/app/src
     depends_on:
       - api
   metabase:
@@ -127,22 +147,26 @@ services:
       postgres:
         condition: service_healthy
   pg-backup: # for backup on demand and restoration IT IS NEEDED
-    image: postgres:18
+    image: expense-tracker-pg-backup:latest
     container_name: expense-tracker-pg-backup
-    entrypoint: ["/bin/sh", "/scripts/backup.sh"]
     environment:
-      POSTGRES_DB: ${DB_NAME:-postgres}
+      POSTGRES_DB: ${DB_NAME:-expense_tracker}
       POSTGRES_USER: ${DB_USER:-postgres}
       PGPASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       BACKUP_DIR: /backup
+      RCLONE_CONFIG: /secrets/rclone.conf
+      RCLONE_REMOTE: ${RCLONE_REMOTE}
+      RCLONE_BACKUP_FOLDER: ${RCLONE_BACKUP_FOLDER}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS}
     volumes:
-      - ./docker/postgres/backup:/scripts:ro
       - ./backups:/backup
+      - ./docker/postgres/backup/rclone.conf:/secrets/rclone.conf:ro
     depends_on:
       postgres:
         condition: service_healthy
+    restart: unless-stopped
 volumes:
   postgres_data:
