@@ -186,6 +186,36 @@ export default function ExpensesTable({
     [filters, onFilterChange],
   );
 
+  const mobileSortValue =
+    sorting[0]?.id === 'date'
+      ? sorting[0].desc
+        ? 'date-desc'
+        : 'date-asc'
+      : sorting[0]?.desc === false
+        ? 'amount-asc'
+        : 'amount-desc';
+
+  const handleMobileSortChange = useCallback((event: React.ChangeEvent<HTMLSelectElement>) => {
+    const [sortBy, sortOrder] = event.target.value.split('-') as [
+      'amount' | 'date',
+      'asc' | 'desc',
+    ];
+    const desc = sortOrder === 'desc';
+
+    setSorting(
+      sortBy === 'date'
+        ? [
+            { id: 'date', desc },
+            { id: 'amount', desc: true },
+          ]
+        : [
+            { id: 'amount', desc },
+            { id: 'date', desc: true },
+          ],
+    );
+    setPagination((current) => ({ ...current, pageIndex: 0 }));
+  }, []);
+
   const handleTagFilter = useCallback(
     (tagId: string) => {
       if (!onFilterChange) return;
@@ -598,6 +628,22 @@ export default function ExpensesTable({
             value={endDateValue}
             onChange={handleEndDateChange}
           />
+        </div>
+        <div className="col-12 col-sm-6">
+          <label className="form-label small mb-1" htmlFor="mobile-expense-sort">
+            Sort
+          </label>
+          <select
+            id="mobile-expense-sort"
+            className="form-select form-select-sm"
+            value={mobileSortValue}
+            onChange={handleMobileSortChange}
+          >
+            <option value="amount-desc">Amount: high to low</option>
+            <option value="amount-asc">Amount: low to high</option>
+            <option value="date-desc">Date: newest first</option>
+            <option value="date-asc">Date: oldest first</option>
+          </select>
         </div>
         <div className="col-12 col-sm-6">
           <label className="form-label small mb-1" htmlFor="mobile-category-filter">
