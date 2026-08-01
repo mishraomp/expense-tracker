@@ -11,14 +11,26 @@ import {
   HttpStatus,
   Request,
 } from '@nestjs/common';
-import { ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { ExpensesService } from './expenses.service';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { ExpenseListQueryDto } from './dto/expense-list-query.dto';
 import { BulkCreateExpenseDto } from './dto/bulk-create-expense.dto';
+import { ExpenseListResponseDto, ExpenseResponseDto } from './dto/expense-response.dto';
 
 @ApiBearerAuth('bearer')
+@ApiTags('Expenses')
 @Controller({ version: '1', path: 'expenses' })
 export class ExpensesController {
   constructor(private readonly expensesService: ExpensesService) {}
@@ -29,6 +41,18 @@ export class ExpensesController {
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Create an expense',
+    description:
+      'Creates a single expense. If recurring=true with recurrenceFrequency+numberOfRecurrences ' +
+      'set, generates up to 365 recurring expenses and returns only the first one — any items ' +
+      'array is ignored entirely when recurring is set. GST/PST amounts are auto-calculated ' +
+      "server-side from gstApplicable/pstApplicable and the caller's tax rate; they are not " +
+      'accepted as input. Quirk: the recurring path does not calculate taxes at all — ' +
+      'gstAmount/pstAmount are left at their database defaults for every expense in the generated series.',
+  })
+  @ApiBody({ type: CreateExpenseDto })
+  @ApiCreatedResponse({ type: ExpenseResponseDto })
   create(@Body() createExpenseDto: CreateExpenseDto, @Request() req) {
     const userId = req.user.sub;
     return this.expensesService.create(userId, createExpenseDto);
@@ -39,6 +63,70 @@ export class ExpensesController {
    */
   @Post('bulk')
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Create multiple expenses',
+    description:
+      'Bulk-creates expenses using category/subcategory NAMES (not UUIDs) — a different ' +
+      'contract from POST /expenses. Detects and skips exact amount+date+description duplicates ' +
+      '(reported, not an error). GST/PST are never calculated for bulk-created expenses. source ' +
+      "is always stored as 'manual' regardless of what's sent. Returns " +
+      '{created, duplicates, failed, summary}, not a plain expense object — inspect summary to ' +
+      'see how many of each outcome occurred.',
+  })
+  @ApiBody({ type: BulkCreateExpenseDto })
+  @ApiCreatedResponse({
+    description:
+      'Per-item outcome of the batch — some items may succeed while others are skipped or fail.',
+    schema: {
+      type: 'object',
+      properties: {
+        created: {
+          type: 'array',
+          description: 'The successfully created expenses.',
+          items: { type: 'object' },
+        },
+        duplicates: {
+          type: 'array',
+          description: 'Items skipped because they matched an existing expense (not an error).',
+          items: {
+            type: 'object',
+            properties: {
+              index: { type: 'number', description: 'Index into the request expenses array.' },
+              expense: { type: 'object', description: 'The rejected input item, as submitted.' },
+              reason: { type: 'string' },
+            },
+          },
+        },
+        failed: {
+          type: 'array',
+          description: 'Items that could not be created.',
+          items: {
+            type: 'object',
+            properties: {
+              index: { type: 'number', description: 'Index into the request expenses array.' },
+              expense: { type: 'object', description: 'The rejected input item, as submitted.' },
+              error: { type: 'string' },
+            },
+          },
+        },
+        summary: {
+          type: 'object',
+          properties: {
+            total: { type: 'number' },
+            created: { type: 'number' },
+            duplicates: { type: 'number' },
+            failed: { type: 'number' },
+          },
+        },
+      },
+      example: {
+        created: [],
+        duplicates: [],
+        failed: [],
+        summary: { total: 1, created: 1, duplicates: 0, failed: 0 },
+      },
+    },
+  })
   bulkCreate(@Body() bulkCreateDto: BulkCreateExpenseDto, @Request() req) {
     const userId = req.user.sub;
     return this.expensesService.bulkCreate(userId, bulkCreateDto.expenses);
@@ -48,6 +136,13 @@ export class ExpensesController {
    * Lists expenses with filtering, sorting, and pagination — see ExpenseListQueryDto for query parameters.
    */
   @Get()
+  @ApiOperation({
+    summary: 'List expenses',
+    description:
+      'Lists expenses with filtering, sorting, and pagination — see each query parameter for ' +
+      'details. sortOrder and sortBy are paired positionally (comma-separated lists).',
+  })
+  @ApiOkResponse({ type: ExpenseListResponseDto })
   findAll(@Query() query: ExpenseListQueryDto, @Request() req) {
     const userId = req.user.sub;
     return this.expensesService.findAll(userId, query);
@@ -57,6 +152,68 @@ export class ExpensesController {
    * Sums expenses matching the filters. If categoryId is provided, also returns the effective budget (subcategory budget takes precedence over category budget) for the period — skipped if only subcategoryId is given without categoryId. Unlike GET /expenses, these query params are NOT validated — malformed dates/UUIDs silently yield empty or incorrect results instead of a 400.
    */
   @Get('totals')
+  @ApiOperation({
+    summary: 'Calculate expense totals',
+    description:
+      'Sums expenses matching the filters. If categoryId is provided, also returns the ' +
+      'effective budget (subcategory budget takes precedence over category budget) for the ' +
+      'period — skipped if only subcategoryId is given without categoryId. Unlike GET ' +
+      '/expenses, these query params are NOT validated — malformed dates/UUIDs silently yield ' +
+      'empty or incorrect results instead of a 400.',
+  })
+  @ApiOkResponse({
+    description: 'Aggregate total and, when a category is resolvable, its budget for the period.',
+    schema: {
+      type: 'object',
+      properties: {
+        total: { type: 'number', description: 'Sum of matching expense amounts.' },
+        count: { type: 'number', description: 'Number of matching expenses.' },
+        budgetAmount: {
+          type: 'number',
+          nullable: true,
+          description: 'Effective budget for the period, if categoryId was provided.',
+        },
+        budgetPeriod: {
+          type: 'string',
+          nullable: true,
+          description: 'Budget period (e.g. monthly), if a budget was found.',
+        },
+        budgetSource: {
+          type: 'string',
+          nullable: true,
+          enum: ['category', 'subcategory'],
+          description: 'Which level the effective budget came from.',
+        },
+      },
+      example: {
+        total: 125.5,
+        count: 3,
+        budgetAmount: 500,
+        budgetPeriod: 'monthly',
+        budgetSource: 'category',
+      },
+    },
+  })
+  @ApiQuery({ name: 'categoryId', required: false, description: 'Category UUID.' })
+  @ApiQuery({ name: 'subcategoryId', required: false, description: 'Subcategory UUID.' })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    description: 'Inclusive start date, YYYY-MM-DD.',
+  })
+  @ApiQuery({ name: 'endDate', required: false, description: 'Inclusive end date, YYYY-MM-DD.' })
+  @ApiQuery({
+    name: 'filterYear',
+    required: false,
+    type: Number,
+    description: 'Calendar year filter.',
+  })
+  @ApiQuery({
+    name: 'filterMonth',
+    required: false,
+    type: Number,
+    description: 'Calendar month filter, 1-12.',
+  })
   async getTotals(
     @Request() req,
     @Query('categoryId') categoryId?: string,
@@ -90,6 +247,12 @@ export class ExpensesController {
    * Gets a single expense by ID.
    */
   @Get(':id')
+  @ApiOperation({
+    summary: 'Get an expense',
+    description: 'Gets a single expense by ID, including its items and tags.',
+  })
+  @ApiParam({ name: 'id', description: 'Expense UUID.' })
+  @ApiOkResponse({ type: ExpenseResponseDto })
   findOne(@Param('id') id: string, @Request() req) {
     const userId = req.user.sub;
     return this.expensesService.findOne(userId, id);
@@ -99,6 +262,18 @@ export class ExpensesController {
    * Partial update. Providing amount/gstApplicable/pstApplicable triggers server-side tax recalculation; if the expense has items, updated gst/pstApplicable cascade to override every item's tax flag. subcategoryId:null clears the subcategory (valid). categoryId:null is invalid — category is required and will cause a server error. Sending tagIds (even []) fully replaces the existing tag set.
    */
   @Put(':id')
+  @ApiOperation({
+    summary: 'Update an expense',
+    description:
+      'Partial update. Providing amount/gstApplicable/pstApplicable triggers server-side tax ' +
+      'recalculation; if the expense has items, updated gst/pstApplicable cascade to override ' +
+      "every item's tax flag. subcategoryId:null clears the subcategory (valid). " +
+      'categoryId:null is invalid — category is required and will cause a server error. ' +
+      'Sending tagIds (even []) fully replaces the existing tag set.',
+  })
+  @ApiParam({ name: 'id', description: 'Expense UUID.' })
+  @ApiBody({ type: UpdateExpenseDto })
+  @ApiOkResponse({ type: ExpenseResponseDto })
   update(@Param('id') id: string, @Body() updateExpenseDto: UpdateExpenseDto, @Request() req) {
     const userId = req.user.sub;
     return this.expensesService.update(userId, id, updateExpenseDto);
@@ -109,6 +284,13 @@ export class ExpensesController {
    */
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Delete an expense',
+    description:
+      'Soft-deletes the expense (sets deletedAt) — the record is not physically removed.',
+  })
+  @ApiParam({ name: 'id', description: 'Expense UUID.' })
+  @ApiNoContentResponse({ description: 'Expense soft-deleted successfully.' })
   remove(@Param('id') id: string, @Request() req) {
     const userId = req.user.sub;
     return this.expensesService.remove(userId, id);

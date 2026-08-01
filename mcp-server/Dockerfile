@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY package*.json ./
 COPY tsconfig.json ./
-
+COPY src /app/
 RUN npm i
 
 EXPOSE 3400

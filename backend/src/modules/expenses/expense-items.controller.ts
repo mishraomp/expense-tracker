@@ -10,10 +10,23 @@ import {
   HttpStatus,
   Request,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags, ApiOperation, ApiParam, ApiBody } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiTags,
+  ApiOperation,
+  ApiParam,
+  ApiBody,
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiOkResponse,
+} from '@nestjs/swagger';
 import { ExpenseItemsService } from './expense-items.service';
 import { CreateExpenseItemDto } from './dto/create-expense-item.dto';
 import { UpdateExpenseItemDto } from './dto/update-expense-item.dto';
+import {
+  ExpenseItemListResponseDto,
+  ExpenseItemResponseDto,
+} from './dto/expense-item-response.dto';
 
 /**
  * Controller for managing expense items (line items within an expense).
@@ -33,6 +46,7 @@ export class ExpenseItemsController {
       "Item amount must not push the sum of the expense's items above the expense total (400 if exceeded). Note: gstApplicable/pstApplicable sent here are currently ignored — tax is not calculated for items added via this endpoint (unlike embedding items inline in POST /expenses, which does compute taxes).",
   })
   @ApiParam({ name: 'expenseId', description: 'Parent expense ID' })
+  @ApiCreatedResponse({ type: ExpenseItemResponseDto })
   create(
     @Param('expenseId') expenseId: string,
     @Body() createDto: CreateExpenseItemDto,
@@ -51,6 +65,7 @@ export class ExpenseItemsController {
   })
   @ApiBody({ type: [CreateExpenseItemDto] })
   @ApiParam({ name: 'expenseId', description: 'Parent expense ID' })
+  @ApiCreatedResponse({ type: [ExpenseItemResponseDto] })
   bulkCreate(
     @Param('expenseId') expenseId: string,
     @Body() items: CreateExpenseItemDto[],
@@ -61,17 +76,25 @@ export class ExpenseItemsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List all items for an expense' })
+  @ApiOperation({
+    summary: 'List all items for an expense',
+    description: 'Lists all non-deleted items for an expense, plus a summary total across them.',
+  })
   @ApiParam({ name: 'expenseId', description: 'Parent expense ID' })
+  @ApiOkResponse({ type: ExpenseItemListResponseDto })
   findAll(@Param('expenseId') expenseId: string, @Request() req) {
     const userId = req.user.sub;
     return this.expenseItemsService.findAll(userId, expenseId);
   }
 
   @Get(':itemId')
-  @ApiOperation({ summary: 'Get a single expense item' })
+  @ApiOperation({
+    summary: 'Get a single expense item',
+    description: 'Gets one line item belonging to an expense.',
+  })
   @ApiParam({ name: 'expenseId', description: 'Parent expense ID' })
   @ApiParam({ name: 'itemId', description: 'Item ID' })
+  @ApiOkResponse({ type: ExpenseItemResponseDto })
   findOne(@Param('expenseId') expenseId: string, @Param('itemId') itemId: string, @Request() req) {
     const userId = req.user.sub;
     return this.expenseItemsService.findOne(userId, expenseId, itemId);
@@ -85,6 +108,7 @@ export class ExpenseItemsController {
   })
   @ApiParam({ name: 'expenseId', description: 'Parent expense ID' })
   @ApiParam({ name: 'itemId', description: 'Item ID' })
+  @ApiOkResponse({ type: ExpenseItemResponseDto })
   update(
     @Param('expenseId') expenseId: string,
     @Param('itemId') itemId: string,
@@ -103,6 +127,7 @@ export class ExpenseItemsController {
   })
   @ApiParam({ name: 'expenseId', description: 'Parent expense ID' })
   @ApiParam({ name: 'itemId', description: 'Item ID' })
+  @ApiNoContentResponse({ description: 'Item deleted.' })
   remove(@Param('expenseId') expenseId: string, @Param('itemId') itemId: string, @Request() req) {
     const userId = req.user.sub;
     return this.expenseItemsService.remove(userId, expenseId, itemId);
@@ -115,6 +140,7 @@ export class ExpenseItemsController {
     description: 'Soft delete — the record is not physically removed.',
   })
   @ApiParam({ name: 'expenseId', description: 'Parent expense ID' })
+  @ApiNoContentResponse({ description: 'All items for this expense deleted.' })
   removeAll(@Param('expenseId') expenseId: string, @Request() req) {
     const userId = req.user.sub;
     return this.expenseItemsService.removeAll(userId, expenseId);

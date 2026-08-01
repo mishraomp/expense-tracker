@@ -11,13 +11,23 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiAcceptedResponse,
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import { ImportService } from './import.service';
 import { ImportSessionResponseDto } from './dto/import-session-response.dto';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 
 @ApiBearerAuth('bearer')
+@ApiTags('Import')
 @Controller({ version: '1', path: 'import' })
 export class ImportController {
   constructor(private readonly importService: ImportService) {}
@@ -30,6 +40,26 @@ export class ImportController {
    * GET /import/{sessionId} for the final result.
    */
   @Post('upload')
+  @ApiOperation({
+    summary: 'Start a CSV or Excel import',
+    description:
+      'Accepts one .csv/.xlsx/.xls file, max 10MB. Expects columns date, amount, category, ' +
+      'description (case-insensitive header matching). category must case-insensitively match ' +
+      'an existing predefined or user-owned category name, or that row fails. Returns 202 ' +
+      "immediately with status='processing' — validation and insert happen asynchronously; " +
+      'poll GET /import/{sessionId} for the final result.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: { type: 'string', format: 'binary', description: 'CSV or Excel file, max 10MB.' },
+      },
+    },
+  })
+  @ApiAcceptedResponse({ type: ImportSessionResponseDto })
   @HttpCode(HttpStatus.ACCEPTED)
   @UseInterceptors(
     FileInterceptor('file', {
@@ -105,6 +135,15 @@ export class ImportController {
    * distinguishable by status code.
    */
   @Get(':sessionId')
+  @ApiOperation({
+    summary: 'Get import session status',
+    description:
+      "Gets an import session's status and results. Both 'session not found' and 'session " +
+      "belongs to another user' return HTTP 400 (not 404/403) — the two cases aren't " +
+      'distinguishable by status code.',
+  })
+  @ApiParam({ name: 'sessionId', description: 'Import session UUID.' })
+  @ApiOkResponse({ type: ImportSessionResponseDto })
   async getSession(
     @Param('sessionId') sessionId: string,
     @Request() req: any,
@@ -138,6 +177,54 @@ export class ImportController {
    * directly — there's no session to poll.
    */
   @Post('full')
+  @ApiOperation({
+    summary: 'Import a full dataset ZIP',
+    description:
+      'A DIFFERENT import contract from /import/upload: accepts a .zip file, max 50MB, ' +
+      'containing up to three optional entries (matched case-insensitively) — categories.csv ' +
+      "(rows with type other than blank/'custom' are silently skipped), subcategories.csv " +
+      "(silently skipped if the named category isn't found), expenses.csv (silently skipped if " +
+      "amount/date/category is missing or category isn't found; exact duplicate rows by " +
+      'userId+amount+date+description are silently skipped). Despite the 202 status code, ' +
+      'processing is SYNCHRONOUS (unlike /import/upload) — the response body already contains ' +
+      'the final {categoriesCreated, categoriesUpdated, subcategoriesUpserted, expensesCreated} ' +
+      "summary; there's no session to poll.",
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: { type: 'string', format: 'binary', description: 'ZIP file, max 50MB.' },
+      },
+    },
+  })
+  @ApiAcceptedResponse({
+    description:
+      'Import already finished by the time this responds — see the description for why the status is 202.',
+    schema: {
+      type: 'object',
+      properties: {
+        categoriesCreated: {
+          type: 'integer',
+          description: 'New categories created from categories.csv.',
+        },
+        categoriesUpdated: {
+          type: 'integer',
+          description: 'Existing categories updated from categories.csv.',
+        },
+        subcategoriesUpserted: {
+          type: 'integer',
+          description: 'Subcategories created or updated from subcategories.csv.',
+        },
+        expensesCreated: {
+          type: 'integer',
+          description: 'New expenses created from expenses.csv.',
+        },
+      },
+    },
+  })
   @HttpCode(HttpStatus.ACCEPTED)
   @UseInterceptors(
     FileInterceptor('file', {

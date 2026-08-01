@@ -1,8 +1,11 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Query, Request } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiCreatedResponse,
   ApiOkResponse,
+  ApiOperation,
+  ApiParam,
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
@@ -22,6 +25,11 @@ export class CategoriesController {
    * its currently-active budget for the given date.
    */
   @Get()
+  @ApiOperation({
+    summary: 'List categories',
+    description:
+      "Lists predefined + the caller's custom categories, each enriched with its currently-active budget for the given date.",
+  })
   @ApiOkResponse({ type: [CategoryResponseDto] })
   @ApiQuery({
     name: 'targetDate',
@@ -40,6 +48,12 @@ export class CategoriesController {
    * field semantics, including name-uniqueness and budget precedence rules.
    */
   @Post()
+  @ApiOperation({
+    summary: 'Create a category',
+    description:
+      'Creates a custom category owned by the caller. See CreateCategoryDto for field semantics, including name-uniqueness and budget precedence rules.',
+  })
+  @ApiBody({ type: CreateCategoryDto })
   @ApiCreatedResponse({ type: CategoryResponseDto })
   create(@Body() body: CreateCategoryDto, @Request() req) {
     const userId = req.user.sub;
@@ -53,6 +67,15 @@ export class CategoriesController {
    * tri-state (omit vs. null vs. value) semantics.
    */
   @Put(':id')
+  @ApiOperation({
+    summary: 'Update a category',
+    description:
+      "For type:'predefined' categories, changing name or icon throws 403 — only colorCode and " +
+      'budget fields are editable on predefined categories. See UpdateCategoryDto for the ' +
+      'budgetAmount tri-state (omit vs. null vs. value) semantics.',
+  })
+  @ApiParam({ name: 'id', description: 'Category UUID.' })
+  @ApiBody({ type: UpdateCategoryDto })
   @ApiOkResponse({ type: CategoryResponseDto })
   update(@Param('id') id: string, @Body() body: UpdateCategoryDto, @Request() req) {
     const userId = req.user.sub;
@@ -65,6 +88,14 @@ export class CategoriesController {
    * categories return 403.
    */
   @Delete(':id')
+  @ApiOperation({
+    summary: 'Delete a category',
+    description:
+      'Soft-deletes a custom category owned by the caller (sets deletedAt) — the record is not ' +
+      "physically removed. Predefined or other-users' categories return 403.",
+  })
+  @ApiParam({ name: 'id', description: 'Category UUID.' })
+  @ApiOkResponse({ description: 'Category soft-deleted successfully.' })
   remove(@Param('id') id: string, @Request() req) {
     const userId = req.user.sub;
     return this.categoriesService.remove(userId, id);

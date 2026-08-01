@@ -14,11 +14,25 @@ import {
   Logger,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiAcceptedResponse,
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import { BulkService } from './bulk.service';
 import { BulkUploadDto } from './dto/bulk-upload.dto';
+import {
+  BulkImportJobResponseDto,
+  BulkUploadStartedResponseDto,
+} from './dto/bulk-job-response.dto';
 
 @ApiBearerAuth('bearer')
+@ApiTags('Attachments')
 @Controller({ version: '1', path: 'attachments/bulk' })
 export class BulkController {
   private readonly logger = new Logger(BulkController.name);
@@ -44,6 +58,46 @@ export class BulkController {
    * not against attachments already stored from earlier uploads.
    */
   @Post()
+  @ApiOperation({
+    summary: 'Start a bulk attachment upload',
+    description:
+      'Accepts up to 50 files. Processing is asynchronous / fire-and-forget — returns 202 with ' +
+      'just a jobId; poll GET /attachments/bulk/{jobId} for status. KNOWN LIMITATIONS: ' +
+      'per-file size/MIME validation is NOT applied here (unlike the single-upload endpoint); ' +
+      'files with no matching recordId are silently skipped, not auto-matched; duplicate ' +
+      'detection (by SHA-256) only catches duplicates within the same request batch, not ' +
+      'against attachments already stored from earlier uploads.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['files', 'recordType'],
+      properties: {
+        files: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+          description: 'Files to upload, max 50.',
+        },
+        recordType: {
+          type: 'string',
+          enum: ['expense', 'income'],
+          description: 'Which kind of record every file in this batch links to.',
+        },
+        recordIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Optional per-file record ID mapping — element i maps to files[i]. If provided, ' +
+            'its length must equal files.length. Omitted slots are skipped, not auto-matched.',
+        },
+      },
+    },
+  })
+  @ApiAcceptedResponse({
+    description: 'Bulk upload job started.',
+    type: BulkUploadStartedResponseDto,
+  })
   @HttpCode(HttpStatus.ACCEPTED)
   @UseInterceptors(FilesInterceptor('files', 50)) // Max 50 files
   async startBulkUpload(@UploadedFiles() files: Express.Multer.File[], @Body() dto: BulkUploadDto) {
@@ -88,6 +142,13 @@ export class BulkController {
 
   /** Gets the status of a bulk upload job. */
   @Get(':jobId')
+  @ApiOperation({
+    summary: 'Get bulk upload job status',
+    description:
+      'Gets the status and progress counters of a bulk upload job. 404 if jobId is unknown.',
+  })
+  @ApiParam({ name: 'jobId', description: 'Bulk upload job ID.' })
+  @ApiOkResponse({ description: 'Current bulk upload job status.', type: BulkImportJobResponseDto })
   async getJobStatus(@Param('jobId') jobId: string) {
     this.logger.log(`GET /api/attachments/bulk/${jobId}`);
 
@@ -108,6 +169,18 @@ export class BulkController {
    * job is a silent no-op — it still returns 200 with the job unchanged, not an error.
    */
   @Patch(':jobId')
+  @ApiOperation({
+    summary: 'Cancel a bulk upload job',
+    description:
+      'Cancels a pending or running job. Calling this on an already completed/canceled/failed ' +
+      'job is a silent no-op — it still returns 200 with the job unchanged, not an error. 404 ' +
+      'if jobId is unknown.',
+  })
+  @ApiParam({ name: 'jobId', description: 'Bulk upload job ID.' })
+  @ApiOkResponse({
+    description: 'Bulk upload job canceled or unchanged.',
+    type: BulkImportJobResponseDto,
+  })
   async cancelJob(@Param('jobId') jobId: string) {
     this.logger.log(`PATCH /api/attachments/bulk/${jobId} (cancel)`);
 

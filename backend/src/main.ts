@@ -83,7 +83,6 @@ async function bootstrap() {
     .setTitle('Expense Tracker API')
     .setDescription('API documentation for the Expense Tracker application')
     .setVersion('1.0')
-    .addTag('expense_tracker')
     .addBearerAuth(
       {
         type: 'http',
