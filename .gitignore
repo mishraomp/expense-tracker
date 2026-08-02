@@ -76,3 +76,7 @@ backend/public/**
 .copilot-memory
 .claude
 .codebase-memory
+.serena
+.github/copilot-instructions.md
+sensitive/**
+*.http

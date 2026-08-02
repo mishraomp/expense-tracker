@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TaxCalculationService } from '../taxes/tax-calculation.service';
 import { CreateExpenseDto } from './dto/create-expense.dto';
@@ -6,7 +7,7 @@ import { UpdateExpenseDto } from './dto/update-expense.dto';
 import {
   ExpenseResponseDto,
   ExpenseListResponseDto,
-  TagResponseDto,
+  ExpenseTagSummaryDto,
 } from './dto/expense-response.dto';
 import { ExpenseListQueryDto } from './dto/expense-list-query.dto';
 import { Decimal } from '@prisma/client/runtime/client.js';
@@ -46,6 +47,24 @@ interface ExpenseListMvRow {
   item_names_text: string;
 }
 
+/**
+ * Validated row awaiting insertion during ExpensesService.bulkCreate().
+ */
+interface BulkCreateExpenseRow {
+  index: number;
+  id: string;
+  data: {
+    userId: string;
+    categoryId: string;
+    subcategoryId: string | null;
+    amount: Decimal;
+    date: Date;
+    description: string | null;
+    source: 'manual';
+    status: 'confirmed';
+  };
+}
+
 @Injectable()
 export class ExpensesService {
   constructor(
@@ -57,7 +76,7 @@ export class ExpensesService {
   async create(userId: string, createExpenseDto: CreateExpenseDto): Promise<ExpenseResponseDto> {
     // Validate amount is positive
     if (createExpenseDto.amount <= 0) {
-      throw new Error('Amount must be positive');
+      throw new BadRequestException('Amount must be positive');
     }
 
     // If subcategoryId provided, verify it exists and belongs to the same category
@@ -66,10 +85,10 @@ export class ExpensesService {
         where: { id: createExpenseDto.subcategoryId },
       });
       if (!sub) {
-        throw new Error('Subcategory does not exist');
+        throw new NotFoundException('Subcategory does not exist');
       }
       if (sub.categoryId !== createExpenseDto.categoryId) {
-        throw new Error('Subcategory does not belong to the provided category');
+        throw new BadRequestException('Subcategory does not belong to the provided category');
       }
     }
 
@@ -148,10 +167,10 @@ export class ExpensesService {
             where: { id: item.subcategoryId },
           });
           if (!sub) {
-            throw new Error(`Subcategory ${item.subcategoryId} does not exist`);
+            throw new NotFoundException(`Subcategory ${item.subcategoryId} does not exist`);
           }
           if (sub.categoryId !== item.categoryId) {
-            throw new Error(
+            throw new BadRequestException(
               `Subcategory ${item.subcategoryId} does not belong to category ${item.categoryId}`,
             );
           }
@@ -486,7 +505,7 @@ export class ExpensesService {
           : undefined,
       attachmentCount: row.attachment_count,
       itemCount: row.item_count,
-      tags: (row.tags || []) as TagResponseDto[],
+      tags: (row.tags || []) as ExpenseTagSummaryDto[],
     }));
 
     return {
@@ -534,7 +553,7 @@ export class ExpensesService {
 
     // Validate amount if provided
     if (updateExpenseDto.amount !== undefined && updateExpenseDto.amount <= 0) {
-      throw new Error('Amount must be positive');
+      throw new BadRequestException('Amount must be positive');
     }
 
     // Build update data
@@ -814,13 +833,46 @@ export class ExpensesService {
     failed: Array<{ index: number; expense: any; error: string }>;
     summary: { total: number; created: number; duplicates: number; failed: number };
   }> {
-    const created: any[] = [];
-    const duplicates: Array<{ index: number; expense: any; reason: string }> = [];
-    const failed: Array<{ index: number; expense: any; error: string }> = [];
+    const { categoryMap, subcategoryMap } = await this.resolveBulkCreateCategoryLookups(
+      userId,
+      expenses,
+    );
+    const duplicateKeys = await this.findBulkCreateDuplicateKeys(userId, expenses);
+    const { toCreate, duplicates, failed } = this.validateBulkCreateExpenses(
+      userId,
+      expenses,
+      categoryMap,
+      subcategoryMap,
+      duplicateKeys,
+    );
+    const { created, failed: insertFailed } = await this.insertBulkCreateExpenses(
+      expenses,
+      toCreate,
+    );
+    failed.push(...insertFailed);
 
-    // OPTIMIZATION 1: Batch fetch all categories and subcategories upfront
-    // Previously: n queries (1 per expense) - ~300ms for 100 expenses
-    // Now: 2 queries total - ~50ms for any number of expenses
+    return {
+      created,
+      duplicates,
+      failed,
+      summary: {
+        total: expenses.length,
+        created: created.length,
+        duplicates: duplicates.length,
+        failed: failed.length,
+      },
+    };
+  }
+
+  /**
+   * Batch-resolve category/subcategory name -> entity lookups for bulk create.
+   * Previously: n queries (1 per expense) - ~300ms for 100 expenses.
+   * Now: 1 query total - ~50ms for any number of expenses.
+   */
+  private async resolveBulkCreateCategoryLookups(
+    userId: string,
+    expenses: any[],
+  ): Promise<{ categoryMap: Map<string, any>; subcategoryMap: Map<string, Map<string, any>> }> {
     const uniqueCategoryNames = [...new Set(expenses.map((e) => e.categoryName))];
     const categories = await this.prisma.category.findMany({
       where: {
@@ -833,7 +885,6 @@ export class ExpensesService {
       },
     });
 
-    // Build lookup maps for O(1) access
     const categoryMap = new Map(categories.map((c) => [c.name, c]));
     const subcategoryMap = new Map<string, Map<string, any>>();
     for (const category of categories) {
@@ -841,9 +892,16 @@ export class ExpensesService {
       subcategoryMap.set(category.id, subMap);
     }
 
-    // OPTIMIZATION 2: Batch duplicate detection with single query
-    // Previously: n queries (1 per expense) - ~200ms for 100 expenses
-    // Now: 1 query with OR conditions - ~30ms for 100 expenses
+    return { categoryMap, subcategoryMap };
+  }
+
+  /**
+   * Batch-detect which incoming expenses already exist (same user, amount,
+   * date, description) in a single query instead of one lookup per expense.
+   * Previously: n queries (1 per expense) - ~200ms for 100 expenses.
+   * Now: 1 query with OR conditions - ~30ms for 100 expenses.
+   */
+  private async findBulkCreateDuplicateKeys(userId: string, expenses: any[]): Promise<Set<string>> {
     const duplicateConditions = expenses.map((exp) => ({
       AND: [
         { userId },
@@ -859,67 +917,86 @@ export class ExpensesService {
       select: { amount: true, date: true, description: true },
     });
 
-    // Build duplicate detection map for O(1) lookups
-    const duplicateKeys = new Set(
+    return new Set(
       existingExpenses.map(
         (e) => `${e.amount.toString()}_${e.date.toISOString()}_${e.description || 'null'}`,
       ),
     );
+  }
 
-    // Process each expense
+  /**
+   * Resolve each incoming expense against the category/subcategory lookups and
+   * duplicate set, splitting them into rows ready to insert vs. duplicates and
+   * failures. Pure - does not touch the database.
+   */
+  private validateBulkCreateExpenses(
+    userId: string,
+    expenses: any[],
+    categoryMap: Map<string, any>,
+    subcategoryMap: Map<string, Map<string, any>>,
+    duplicateKeys: Set<string>,
+  ): {
+    toCreate: BulkCreateExpenseRow[];
+    duplicates: Array<{ index: number; expense: any; reason: string }>;
+    failed: Array<{ index: number; expense: any; error: string }>;
+  } {
+    const toCreate: BulkCreateExpenseRow[] = [];
+    const duplicates: Array<{ index: number; expense: any; reason: string }> = [];
+    const failed: Array<{ index: number; expense: any; error: string }> = [];
+
     for (let i = 0; i < expenses.length; i++) {
       const expenseDto = expenses[i];
 
-      try {
-        // Resolve category using lookup map
-        const category = categoryMap.get(expenseDto.categoryName);
+      // Resolve category using lookup map
+      const category = categoryMap.get(expenseDto.categoryName);
 
-        if (!category) {
+      if (!category) {
+        failed.push({
+          index: i,
+          expense: expenseDto,
+          error: `Category '${expenseDto.categoryName}' not found`,
+        });
+        continue;
+      }
+
+      let subcategoryId: string | null = null;
+
+      // Resolve subcategory using lookup map
+      if (expenseDto.subcategoryName) {
+        const subMap = subcategoryMap.get(category.id);
+        const subcategory = subMap?.get(expenseDto.subcategoryName);
+
+        if (!subcategory) {
           failed.push({
             index: i,
             expense: expenseDto,
-            error: `Category '${expenseDto.categoryName}' not found`,
+            error: `Subcategory '${expenseDto.subcategoryName}' not found under category '${expenseDto.categoryName}'`,
           });
           continue;
         }
 
-        let subcategoryId: string | null = null;
+        subcategoryId = subcategory.id;
+      }
 
-        // Resolve subcategory using lookup map
-        if (expenseDto.subcategoryName) {
-          const subMap = subcategoryMap.get(category.id);
-          const subcategory = subMap?.get(expenseDto.subcategoryName);
+      // Check for duplicate using pre-built set
+      const duplicateKey = `${expenseDto.amount}_${new Date(expenseDto.date).toISOString()}_${expenseDto.description === null || expenseDto.description === undefined ? 'null' : expenseDto.description}`;
+      if (duplicateKeys.has(duplicateKey)) {
+        duplicates.push({
+          index: i,
+          expense: expenseDto,
+          reason: 'Duplicate expense: same amount, date, and description already exists',
+        });
+        continue;
+      }
 
-          if (!subcategory) {
-            failed.push({
-              index: i,
-              expense: expenseDto,
-              error: `Subcategory '${expenseDto.subcategoryName}' not found under category '${expenseDto.categoryName}'`,
-            });
-            continue;
-          }
-
-          subcategoryId = subcategory.id;
-        }
-
-        // Check for duplicate using pre-built set
-        const duplicateKey = `${expenseDto.amount}_${new Date(expenseDto.date).toISOString()}_${expenseDto.description === null || expenseDto.description === undefined ? 'null' : expenseDto.description}`;
-        if (duplicateKeys.has(duplicateKey)) {
-          duplicates.push({
-            index: i,
-            expense: expenseDto,
-            reason: 'Duplicate expense: same amount, date, and description already exists',
-          });
-          continue;
-        }
-
-        // Create the expense
+      try {
         // Note: DB has CHECK constraints:
         // - source='imported' requires importSessionId
         // - source='api' requires connectionId
         // The bulk API has neither context, so always persist as 'manual'.
-        const effectiveSource = 'manual';
-        const expense = await this.prisma.expense.create({
+        toCreate.push({
+          index: i,
+          id: randomUUID(),
           data: {
             userId,
             categoryId: category.id,
@@ -927,16 +1004,10 @@ export class ExpensesService {
             amount: new Decimal(expenseDto.amount),
             date: new Date(expenseDto.date),
             description: expenseDto.description || null,
-            source: effectiveSource,
+            source: 'manual',
             status: 'confirmed',
           },
-          include: {
-            category: true,
-            subcategory: true,
-          },
         });
-
-        created.push(expense);
       } catch (error) {
         failed.push({
           index: i,
@@ -946,16 +1017,53 @@ export class ExpensesService {
       }
     }
 
-    return {
-      created,
-      duplicates,
-      failed,
-      summary: {
-        total: expenses.length,
-        created: created.length,
-        duplicates: duplicates.length,
-        failed: failed.length,
-      },
-    };
+    return { toCreate, duplicates, failed };
+  }
+
+  /**
+   * Persist all validated rows with a single createMany() call - instead of
+   * one create() per row - so the mv_expense_list refresh trigger (AFTER
+   * INSERT ... FOR EACH STATEMENT) fires once per batch, not once per
+   * expense, then fetches the created rows back with their relations.
+   */
+  private async insertBulkCreateExpenses(
+    expenses: any[],
+    toCreate: BulkCreateExpenseRow[],
+  ): Promise<{ created: any[]; failed: Array<{ index: number; expense: any; error: string }> }> {
+    const created: any[] = [];
+    const failed: Array<{ index: number; expense: any; error: string }> = [];
+
+    if (!toCreate.length) {
+      return { created, failed };
+    }
+
+    try {
+      await this.prisma.expense.createMany({
+        data: toCreate.map(({ id, data }) => ({ id, ...data })),
+      });
+
+      const createdRows = await this.prisma.expense.findMany({
+        where: { id: { in: toCreate.map((entry) => entry.id) } },
+        include: { category: true, subcategory: true },
+      });
+      const createdById = new Map(createdRows.map((expense) => [expense.id, expense]));
+
+      for (const entry of toCreate) {
+        const expense = createdById.get(entry.id);
+        if (expense) {
+          created.push(expense);
+        }
+      }
+    } catch (error) {
+      for (const entry of toCreate) {
+        failed.push({
+          index: entry.index,
+          expense: expenses[entry.index],
+          error: error.message || 'Unknown error',
+        });
+      }
+    }
+
+    return { created, failed };
   }
 }

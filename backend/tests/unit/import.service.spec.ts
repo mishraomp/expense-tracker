@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ImportService } from '../../src/modules/import/import.service';
-import { Prisma } from '@prisma/client';
 
 describe('ImportService', () => {
   let mockPrisma: any;
@@ -13,13 +12,26 @@ describe('ImportService', () => {
         findUnique: vi.fn(),
         update: vi.fn(),
       },
-      category: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
-      subcategory: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
-      expense: {
+      category: {
         findFirst: vi.fn(),
-        createMany: vi.fn(async () => ({ count: 1 })),
-        create: vi.fn(),
+        findMany: vi.fn(async () => []),
+        create: vi.fn(async ({ data }: any) => ({ id: 'c1', ...data })),
+        update: vi.fn(),
       },
+      subcategory: {
+        create: vi.fn(async ({ data }: any) => ({ id: 's1', ...data })),
+        update: vi.fn(),
+      },
+      expense: {
+        findMany: vi.fn(async () => []),
+        createMany: vi.fn(async ({ data }: any) => ({ count: data.length })),
+      },
+      budget: {
+        findFirst: vi.fn(async () => null),
+        create: vi.fn(async ({ data }: any) => ({ id: 'b1', ...data })),
+        update: vi.fn(),
+      },
+      $transaction: vi.fn(async (ops: any[]) => Promise.all(ops)),
     };
     svc = new ImportService(mockPrisma as any);
   });
@@ -84,17 +96,37 @@ describe('ImportService', () => {
     zip.addFile('expenses.csv', Buffer.from(expensesCsv, 'utf8'));
     const buf = zip.toBuffer();
 
-    // Mock category/subcategory flows
-    mockPrisma.category.findFirst.mockResolvedValueOnce(null); // category not found -> create
-    mockPrisma.category.create = vi.fn(async ({ data }: any) => ({ id: 'c1', ...data }));
-    mockPrisma.subcategory.findFirst.mockResolvedValueOnce(null); // sub not found -> create
-    mockPrisma.subcategory.create = vi.fn(async ({ data }: any) => ({ id: 's1', ...data }));
-    mockPrisma.expense.findFirst.mockResolvedValueOnce(null); // no duplicate
-    mockPrisma.expense.create = vi.fn(async ({ data }: any) => ({ id: 'e1', ...data }));
+    // No existing custom categories -> the row is batched as a create
+    mockPrisma.category.findMany.mockResolvedValueOnce([]);
+    // Categories (with subcategories) visible to the user, fetched once and reused by the
+    // subcategories/expenses sections. No subcategories yet -> the row is batched as a create.
+    mockPrisma.category.findMany.mockResolvedValueOnce([
+      { id: 'c1', name: 'MyCat', subcategories: [] },
+    ]);
+    // No existing expenses for this user
+    mockPrisma.expense.findMany.mockResolvedValueOnce([]);
 
     const summary = await svc.importFullFromZip(buf, 'user-1');
-    expect(summary.categoriesCreated).toBeGreaterThanOrEqual(0);
-    expect(summary.expensesCreated).toBeGreaterThanOrEqual(0);
+    expect(summary.categoriesCreated).toBe(1);
+    expect(summary.subcategoriesUpserted).toBe(1);
+    expect(summary.expensesCreated).toBe(1);
+    expect(mockPrisma.category.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ name: 'MyCat' }),
+    });
+    expect(mockPrisma.subcategory.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ name: 'MySub', categoryId: 'c1' }),
+    });
+    expect(mockPrisma.expense.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ categoryId: 'c1', subcategoryId: 's1' })],
+    });
+    // Budget amount/period from the CSV land in the Budget table, not on
+    // Category/Subcategory (those fields no longer exist on those models).
+    expect(mockPrisma.budget.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ categoryId: 'c1', subcategoryId: null }),
+    });
+    expect(mockPrisma.budget.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ categoryId: null, subcategoryId: 's1' }),
+    });
   });
 
   it('importFullFromZip skips duplicate expenses', async () => {
@@ -105,12 +137,17 @@ describe('ImportService', () => {
     zip.addFile('expenses.csv', Buffer.from(expensesCsv, 'utf8'));
     const buf = zip.toBuffer();
 
-    // Mock category exists
-    mockPrisma.category.findFirst.mockResolvedValueOnce({ id: 'c1' });
-    // Duplicate detection
-    mockPrisma.expense.findFirst.mockResolvedValueOnce({ id: 'e-exists' });
+    // Category visible to the user
+    mockPrisma.category.findMany.mockResolvedValueOnce([
+      { id: 'c1', name: 'MyCat', subcategories: [] },
+    ]);
+    // Existing expense matches this row's amount/date/description -> duplicate
+    mockPrisma.expense.findMany.mockResolvedValueOnce([
+      { amount: { toNumber: () => 10 }, date: new Date(2025, 0, 1), description: 'Test' },
+    ]);
 
     const summary = await svc.importFullFromZip(buf, 'user-1');
     expect(summary.expensesCreated).toBe(0);
+    expect(mockPrisma.expense.createMany).not.toHaveBeenCalled();
   });
 });

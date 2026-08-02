@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   getCategoryBudgetForDisplay,
+  getCategoryBudgetsForDisplayBatch,
   upsertCategoryBudget,
   removeCategoryBudgets,
   computeBudgetDateRange,
@@ -50,19 +51,23 @@ export class CategoriesService {
       orderBy: [{ type: 'asc' }, { name: 'asc' }],
     });
 
-    // Enrich with budget data
-    const result: CategoryWithBudget[] = [];
-    for (const cat of categories) {
-      const budget = await getCategoryBudgetForDisplay(this.prisma, cat.id, targetDate);
-      result.push({
+    // Enrich with budget data (single batched query instead of one per category)
+    const budgetsByCategory = await getCategoryBudgetsForDisplayBatch(
+      this.prisma,
+      categories.map((cat) => cat.id),
+      targetDate,
+    );
+    const result: CategoryWithBudget[] = categories.map((cat) => {
+      const budget = budgetsByCategory.get(cat.id)!;
+      return {
         ...cat,
         type: cat.type,
         budgetAmount: budget.budgetAmount,
         budgetPeriod: budget.budgetPeriod,
         budgetStartDate: budget.budgetStartDate,
         budgetEndDate: budget.budgetEndDate,
-      });
-    }
+      };
+    });
 
     return result;
   }

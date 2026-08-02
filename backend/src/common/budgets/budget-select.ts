@@ -379,6 +379,87 @@ export async function getSubcategoryBudgetForDisplay(
 }
 
 /**
+ * Batch version of getCategoryBudgetForDisplay: fetches active budgets for many
+ * categories in a single query instead of one query per category.
+ */
+export async function getCategoryBudgetsForDisplayBatch(
+  prisma: PrismaService,
+  categoryIds: string[],
+  targetDate: Date = new Date(),
+): Promise<Map<string, ReturnType<typeof budgetToDisplay>>> {
+  const candidates = await prisma.budget.findMany({
+    where: {
+      categoryId: { in: categoryIds },
+      startDate: { lte: targetDate },
+      endDate: { gte: targetDate },
+    },
+    orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
+  });
+
+  const byCategory = new Map<string, (typeof candidates)[number]>();
+  for (const budget of candidates) {
+    if (budget.categoryId && !byCategory.has(budget.categoryId)) {
+      byCategory.set(budget.categoryId, budget);
+    }
+  }
+
+  const result = new Map<string, ReturnType<typeof budgetToDisplay>>();
+  for (const categoryId of categoryIds) {
+    result.set(categoryId, budgetToDisplay(byCategory.get(categoryId) ?? null));
+  }
+  return result;
+}
+
+/**
+ * Batch version of getSubcategoryBudgetForDisplay: fetches active budgets for many
+ * subcategories in a single query instead of one query per subcategory.
+ */
+export async function getSubcategoryBudgetsForDisplayBatch(
+  prisma: PrismaService,
+  subcategoryIds: string[],
+  targetDate: Date = new Date(),
+): Promise<Map<string, ReturnType<typeof budgetToDisplay>>> {
+  const candidates = await prisma.budget.findMany({
+    where: {
+      subcategoryId: { in: subcategoryIds },
+      startDate: { lte: targetDate },
+      endDate: { gte: targetDate },
+    },
+    orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
+  });
+
+  const bySubcategory = new Map<string, (typeof candidates)[number]>();
+  for (const budget of candidates) {
+    if (budget.subcategoryId && !bySubcategory.has(budget.subcategoryId)) {
+      bySubcategory.set(budget.subcategoryId, budget);
+    }
+  }
+
+  const result = new Map<string, ReturnType<typeof budgetToDisplay>>();
+  for (const subcategoryId of subcategoryIds) {
+    result.set(subcategoryId, budgetToDisplay(bySubcategory.get(subcategoryId) ?? null));
+  }
+  return result;
+}
+
+function budgetToDisplay(budget: ActiveBudget | null): {
+  budgetAmount: string | null;
+  budgetPeriod: 'monthly' | 'annual' | null;
+  budgetStartDate: string | null;
+  budgetEndDate: string | null;
+} {
+  if (!budget) {
+    return { budgetAmount: null, budgetPeriod: null, budgetStartDate: null, budgetEndDate: null };
+  }
+  return {
+    budgetAmount: budget.amount.toString(),
+    budgetPeriod: deriveBudgetPeriod(budget.startDate, budget.endDate),
+    budgetStartDate: budget.startDate.toISOString().split('T')[0],
+    budgetEndDate: budget.endDate.toISOString().split('T')[0],
+  };
+}
+
+/**
  * Computes budget date range from explicit dates, legacy period, or defaults.
  * Priority:
  * 1. Explicit startDate/endDate if both provided

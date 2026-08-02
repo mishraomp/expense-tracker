@@ -101,12 +101,12 @@ export class ExpenseItemsService {
       );
     }
 
-    // Validate all subcategory-category pairs upfront
-    for (const dto of items) {
-      if (dto.categoryId && dto.subcategoryId) {
-        await this.validateSubcategoryCategory(dto.categoryId, dto.subcategoryId);
-      }
-    }
+    // Validate all subcategory-category pairs upfront (single batched query)
+    await this.validateSubcategoryCategoryBatch(
+      items
+        .filter((dto) => dto.categoryId && dto.subcategoryId)
+        .map((dto) => ({ categoryId: dto.categoryId!, subcategoryId: dto.subcategoryId! })),
+    );
 
     // Create all items in transaction
     const createdItems = await this.prisma.$transaction(
@@ -381,17 +381,37 @@ export class ExpenseItemsService {
     categoryId: string,
     subcategoryId: string,
   ): Promise<void> {
-    const subcategory = await this.prisma.subcategory.findUnique({
-      where: { id: subcategoryId },
-      select: { categoryId: true },
-    });
+    await this.validateSubcategoryCategoryBatch([{ categoryId, subcategoryId }]);
+  }
 
-    if (!subcategory) {
-      throw new BadRequestException(`Subcategory with ID ${subcategoryId} not found`);
+  /**
+   * Validate that subcategories belong to their respective categories, in a single query.
+   * @throws BadRequestException if any pair fails validation
+   */
+  private async validateSubcategoryCategoryBatch(
+    pairs: { categoryId: string; subcategoryId: string }[],
+  ): Promise<void> {
+    if (pairs.length === 0) {
+      return;
     }
 
-    if (subcategory.categoryId !== categoryId) {
-      throw new BadRequestException('Subcategory does not belong to the specified category');
+    const subcategoryIds = [...new Set(pairs.map((pair) => pair.subcategoryId))];
+    const subcategories = await this.prisma.subcategory.findMany({
+      where: { id: { in: subcategoryIds } },
+      select: { id: true, categoryId: true },
+    });
+    const categoryIdBySubcategoryId = new Map(subcategories.map((s) => [s.id, s.categoryId]));
+
+    for (const { categoryId, subcategoryId } of pairs) {
+      const actualCategoryId = categoryIdBySubcategoryId.get(subcategoryId);
+
+      if (!actualCategoryId) {
+        throw new BadRequestException(`Subcategory with ID ${subcategoryId} not found`);
+      }
+
+      if (actualCategoryId !== categoryId) {
+        throw new BadRequestException('Subcategory does not belong to the specified category');
+      }
     }
   }
 }

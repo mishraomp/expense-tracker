@@ -12,6 +12,7 @@ describe('ExpensesService', () => {
     mockPrisma = {
       expense: {
         create: vi.fn(async ({ data }: any) => ({ id: 'exp-1', ...data })),
+        createMany: vi.fn(async ({ data }: any) => ({ count: data.length })),
         findMany: vi.fn(async () => [{ id: 'exp-1', amount: new Decimal(100) }]),
         count: vi.fn(async () => 1),
         aggregate: vi.fn(async () => ({ _sum: { amount: new Decimal(100) } })),
@@ -333,11 +334,14 @@ describe('ExpensesService', () => {
       { id: 'cat-1', name: 'Utilities', subcategories: [{ id: 'sub-1', name: 'Electric' }] },
     ]);
     mockPrisma.expense.findMany.mockResolvedValueOnce([]); // no duplicates
-    mockPrisma.expense.create.mockResolvedValueOnce({
-      id: 'e1',
-      category: { id: 'cat-1' },
-      subcategory: { id: 'sub-1' },
-    });
+    // fetched back after createMany() - echo the generated ids passed in `where.id.in`
+    mockPrisma.expense.findMany.mockImplementationOnce(async ({ where }: any) =>
+      where.id.in.map((id: string) => ({
+        id,
+        category: { id: 'cat-1' },
+        subcategory: { id: 'sub-1' },
+      })),
+    );
     const out1 = await svc.bulkCreate('user-1', [
       {
         categoryName: 'Utilities',

@@ -1,5 +1,5 @@
 import { ExpenseItem, Category, Subcategory } from '@prisma/client';
-import { CategoryResponseDto } from './expense-response.dto';
+import { ExpenseCategorySummaryDto } from './expense-response.dto';
 
 /**
  * Response DTO for expense item data.
@@ -84,7 +84,7 @@ export class ExpenseItemResponseDto {
   /**
    * Nested category details, when included by the query.
    */
-  category?: CategoryResponseDto;
+  category?: ExpenseCategorySummaryDto;
 
   /**
    * Nested subcategory details (id/name only), when included by the query.

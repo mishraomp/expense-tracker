@@ -7,7 +7,9 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { ReportsService } from './reports.service';
+import { SpendingReportsService } from './spending-reports.service';
+import { BudgetReportsService } from './budget-reports.service';
+import { IncomeReportsService } from './income-reports.service';
 import { SpendingOverTimeQueryDto } from './dto/spending-over-time.dto';
 import { SpendingByCategoryQueryDto } from './dto/spending-by-category.dto';
 import { SpendingByCategoryTagsQueryDto } from './dto/spending-by-category-tags.dto';
@@ -28,7 +30,11 @@ import { IncomeVsExpenseResponseDto } from './dto/income-vs-expense.dto';
 @ApiBearerAuth('bearer')
 @Controller({ version: '1', path: 'reports' })
 export class ReportsController {
-  constructor(private readonly reportsService: ReportsService) {}
+  constructor(
+    private readonly spendingReports: SpendingReportsService,
+    private readonly budgetReports: BudgetReportsService,
+    private readonly incomeReports: IncomeReportsService,
+  ) {}
 
   /**
    * startDate/endDate are inclusive. interval controls bucket granularity:
@@ -49,7 +55,7 @@ export class ReportsController {
   @ApiOkResponse({ type: SpendingOverTimeResponseDto })
   getSpendingOverTime(@Query() query: SpendingOverTimeQueryDto, @Request() req) {
     const userId = req.user.sub;
-    return this.reportsService.getSpendingOverTime(userId, query);
+    return this.spendingReports.getSpendingOverTime(userId, query);
   }
 
   /**
@@ -73,7 +79,7 @@ export class ReportsController {
   @ApiOkResponse({ type: [CategoryBreakdownItemDto] })
   getSpendingByCategory(@Query() query: SpendingByCategoryQueryDto, @Request() req) {
     const userId = req.user.sub;
-    return this.reportsService.getSpendingByCategory(userId, query);
+    return this.spendingReports.getSpendingByCategory(userId, query);
   }
 
   /**
@@ -104,7 +110,7 @@ export class ReportsController {
   @ApiOkResponse({ type: SpendingByCategoryTagsResponseDto })
   getSpendingByCategoryTags(@Query() query: SpendingByCategoryTagsQueryDto, @Request() req) {
     const userId = req.user.sub;
-    return this.reportsService.getSpendingByCategoryTags(userId, query);
+    return this.spendingReports.getSpendingByCategoryTags(userId, query);
   }
 
   /**
@@ -147,7 +153,7 @@ export class ReportsController {
   })
   getSpendingBySubcategory(@Query() query: SpendingByCategoryQueryDto, @Request() req) {
     const userId = req.user.sub;
-    return this.reportsService.getSpendingBySubcategory(userId, query);
+    return this.spendingReports.getSpendingBySubcategory(userId, query);
   }
 
   /**
@@ -171,7 +177,7 @@ export class ReportsController {
   @ApiOkResponse({ type: [BudgetVsActualPointDto] })
   getBudgetVsActual(@Query() query: BudgetVsActualQueryDto, @Request() req) {
     const userId = req.user.sub;
-    return this.reportsService.getBudgetVsActual(userId, query);
+    return this.budgetReports.getBudgetVsActual(userId, query);
   }
 
   // New: Budget reports (category & subcategory) backed by DB views
@@ -206,7 +212,7 @@ export class ReportsController {
     @Request() req,
   ) {
     const userId = req.user.sub;
-    return this.reportsService.getCategoryBudgetReport(userId, { startDate, endDate, categoryId });
+    return this.budgetReports.getCategoryBudgetReport(userId, { startDate, endDate, categoryId });
   }
 
   /**
@@ -246,7 +252,7 @@ export class ReportsController {
     @Request() req,
   ) {
     const userId = req.user.sub;
-    return this.reportsService.getSubcategoryBudgetReport(userId, {
+    return this.budgetReports.getSubcategoryBudgetReport(userId, {
       startDate,
       endDate,
       categoryId,
@@ -269,7 +275,7 @@ export class ReportsController {
   @ApiOkResponse({ type: IncomeVsExpenseResponseDto })
   getIncomeVsExpense(@Query() query: IncomeVsExpenseQueryDto, @Request() req) {
     const userId = req.user.sub;
-    return this.reportsService.getIncomeVsExpense(userId, query);
+    return this.incomeReports.getIncomeVsExpense(userId, query);
   }
 
   /**
@@ -309,7 +315,7 @@ export class ReportsController {
     @Request() req,
   ) {
     const userId = req.user.sub;
-    return this.reportsService.getTotalBudget(userId, { startDate, endDate });
+    return this.budgetReports.getTotalBudget(userId, { startDate, endDate });
   }
 
   /**
@@ -343,7 +349,7 @@ export class ReportsController {
     @Request() req,
   ) {
     const userId = req.user.sub;
-    return this.reportsService.getBudgetedExpenses(userId, { startDate, endDate });
+    return this.budgetReports.getBudgetedExpenses(userId, { startDate, endDate });
   }
 
   /**
@@ -384,7 +390,7 @@ export class ReportsController {
     @Request() req,
   ) {
     const userId = req.user.sub;
-    return this.reportsService.getTopExpenseItems(userId, {
+    return this.spendingReports.getTopExpenseItems(userId, {
       startDate,
       endDate,
       categoryId,
@@ -445,7 +451,7 @@ export class ReportsController {
     @Request() req,
   ) {
     const userId = req.user.sub;
-    return this.reportsService.getSubcategoryLineItems(userId, {
+    return this.spendingReports.getSubcategoryLineItems(userId, {
       subcategoryId,
       startDate,
       endDate,
@@ -531,7 +537,7 @@ export class ReportsController {
     @Request() req,
   ) {
     const userId = req.user.sub;
-    return this.reportsService.searchExpenseItems(userId, {
+    return this.spendingReports.searchExpenseItems(userId, {
       query: query || '',
       startDate,
       endDate,

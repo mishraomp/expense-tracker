@@ -1,7 +1,7 @@
 import { Expense, Category, Subcategory, ExpenseItem, Tag, ExpenseTag } from '@prisma/client';
 import { ExpenseItemResponseDto } from './expense-item-response.dto';
 
-export class CategoryResponseDto {
+export class ExpenseCategorySummaryDto {
   /**
    * Category UUID.
    */
@@ -28,7 +28,7 @@ export class CategoryResponseDto {
   icon: string | null;
 }
 
-export class TagResponseDto {
+export class ExpenseTagSummaryDto {
   /**
    * Tag UUID.
    */
@@ -139,7 +139,7 @@ export class ExpenseResponseDto {
   /**
    * Nested category details, when included by the query.
    */
-  category?: CategoryResponseDto;
+  category?: ExpenseCategorySummaryDto;
 
   /**
    * Nested subcategory details (id/name only), when included by the query.
@@ -164,7 +164,7 @@ export class ExpenseResponseDto {
   /**
    * Tags associated with this expense, when included by the query.
    */
-  tags?: TagResponseDto[]; // associated tags
+  tags?: ExpenseTagSummaryDto[]; // associated tags
 
   static fromEntity(
     expense: Expense & {

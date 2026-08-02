@@ -21,7 +21,7 @@ services:
       retries: 5
 
   flyway:
-    image: flyway/flyway:11-alpine
+    image: flyway/flyway:13-alpine
     container_name: expense-tracker-flyway
     command: migrate
     volumes:
@@ -35,7 +35,7 @@ services:
       postgres:
         condition: service_healthy
   keycloak:
-    image: quay.io/keycloak/keycloak:26.4
+    image: quay.io/keycloak/keycloak:26.7
     container_name: expense-tracker-keycloak
     env_file:
       - .env
@@ -115,8 +115,11 @@ services:
     container_name: expense-tracker-frontend
     environment:
       VITE_API_URL: ${VITE_API_URL:-http://localhost:3000/api/v1}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      BACKEND_URL: http://localhost:3000
+      KEYCLOAK_URL: ${VITE_KEYCLOAK_URL:-http://localhost:8080}
     ports:
-      - "${FRONTEND_PORT:-5173}:5173"
+      - "${FRONTEND_PORT:-5173}:3000"
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/public:/app/public
@@ -134,10 +137,17 @@ services:
       MCP_HTTP_HOST: 0.0.0.0
     ports:
       - "3400:3400"
-    volumes:
-      - ./mcp-server/src:/app/src
     depends_on:
       - api
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "require(''http'').get(''http://localhost:3400/health'',r=>process.exit(r.statusCode===200?0:1)).on(''error'',()=>process.exit(1))"',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
   metabase:
     image: metabase/metabase:v0.56.x
     container_name: expense-tracker-metabase

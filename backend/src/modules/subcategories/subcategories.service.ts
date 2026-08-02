@@ -9,6 +9,7 @@ import { CreateSubcategoryDto, UpdateSubcategoryDto } from './subcategories.dto'
 import { Subcategory } from './subcategory.entity';
 import {
   getSubcategoryBudgetForDisplay,
+  getSubcategoryBudgetsForDisplayBatch,
   upsertSubcategoryBudget,
   removeSubcategoryBudgets,
   computeBudgetDateRange,
@@ -97,18 +98,21 @@ export class SubcategoriesService {
       orderBy: { name: 'asc' },
     });
 
-    // Enrich with budget data
-    const result: SubcategoryWithBudget[] = [];
-    for (const sub of subcategories) {
-      const budget = await getSubcategoryBudgetForDisplay(this.prisma, sub.id);
-      result.push({
+    // Enrich with budget data (single batched query instead of one per subcategory)
+    const budgetsBySubcategory = await getSubcategoryBudgetsForDisplayBatch(
+      this.prisma,
+      subcategories.map((sub) => sub.id),
+    );
+    const result: SubcategoryWithBudget[] = subcategories.map((sub) => {
+      const budget = budgetsBySubcategory.get(sub.id)!;
+      return {
         ...sub,
         budgetAmount: budget.budgetAmount,
         budgetPeriod: budget.budgetPeriod,
         budgetStartDate: budget.budgetStartDate,
         budgetEndDate: budget.budgetEndDate,
-      });
-    }
+      };
+    });
 
     return result;
   }

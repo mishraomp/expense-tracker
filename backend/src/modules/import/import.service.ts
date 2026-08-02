@@ -6,6 +6,11 @@ import * as XLSX from 'xlsx';
 import { Readable } from 'stream';
 import { ErrorDetail } from './dto/import-session-response.dto';
 import AdmZip from 'adm-zip';
+import {
+  upsertCategoryBudget,
+  upsertSubcategoryBudget,
+  computeBudgetDateRange,
+} from '../../common/budgets';
 
 interface ParsedRow {
   date: string;
@@ -150,23 +155,13 @@ export class ImportService {
   }
 
   /**
-   * Check if a similar expense already exists
-   * (same user, amount, date, and description)
+   * Build a lookup key for duplicate expense detection (same user, amount, date, description).
+   * An escape-sequence sentinel is used for `null` descriptions so it never collides with an
+   * empty-string description.
    */
-  private async checkForDuplicate(
-    userId: string,
-    data: { amount: number; date: Date; description: string },
-  ): Promise<boolean> {
-    const existing = await this.prisma.expense.findFirst({
-      where: {
-        userId,
-        amount: new Prisma.Decimal(data.amount),
-        date: data.date,
-        description: data.description,
-      },
-    });
-
-    return !!existing;
+  private duplicateKey(amount: number, date: Date, description: string | null): string {
+    const NULL_SENTINEL = '￿';
+    return `${amount}|${date.getTime()}|${description === null ? NULL_SENTINEL : description}`;
   }
 
   async processImport(sessionId: string, userId: string, rows: ParsedRow[]) {
@@ -259,9 +254,23 @@ export class ImportService {
       expensesCreated: 0,
     };
 
-    // Categories (custom only)
+    // Categories (custom only) — pre-fetch existing rows once instead of a findFirst per row
     if (categoriesCsv) {
       const rows = await parseCsvText(categoriesCsv);
+
+      const existingCategories = await this.prisma.category.findMany({
+        where: { userId, type: 'custom' },
+      });
+      const existingByName = new Map(existingCategories.map((c) => [c.name.toLowerCase(), c]));
+
+      // Dedupe by name so a repeated name in the CSV keeps only the last row's data
+      // (matches the original row-by-row upsert's "last write wins" behavior). Budget
+      // amount/period are tracked separately since they live in the Budget table, not on
+      // Category itself.
+      const pendingByName = new Map<
+        string,
+        { data: any; budget: { amount: Prisma.Decimal; period: string | null } | null }
+      >();
       for (const r of rows) {
         const name = (r.name || '').trim();
         if (!name) continue;
@@ -269,65 +278,181 @@ export class ImportService {
         // Only handle custom categories for the user; predefined are global and seeded
         if (type && type !== 'custom') continue;
 
-        const existing = await this.prisma.category.findFirst({
-          where: { name: { equals: name, mode: 'insensitive' }, userId },
+        pendingByName.set(name.toLowerCase(), {
+          data: {
+            name,
+            type: 'custom',
+            userId,
+            colorCode: r.color_code || null,
+            icon: r.icon || null,
+          },
+          budget: r.budget_amount
+            ? { amount: new Prisma.Decimal(r.budget_amount), period: r.budget_period || null }
+            : null,
         });
-        const data: any = {
-          name,
-          type: 'custom',
-          userId,
-          colorCode: r.color_code || null,
-          icon: r.icon || null,
-          budgetAmount: r.budget_amount ? new Prisma.Decimal(r.budget_amount) : null,
-          budgetPeriod: r.budget_period || null,
-        };
+      }
+
+      // Category id per dedupe key, used below to attach budgets via the Budget model.
+      const categoryIdByKey = new Map<string, string>();
+      const creates: { key: string; data: any }[] = [];
+      const updates: { id: string; data: any }[] = [];
+      for (const [key, entry] of pendingByName) {
+        const existing = existingByName.get(key);
         if (existing) {
-          await this.prisma.category.update({ where: { id: existing.id }, data });
-          summary.categoriesUpdated++;
+          categoryIdByKey.set(key, existing.id);
+          updates.push({ id: existing.id, data: entry.data });
         } else {
-          await this.prisma.category.create({ data });
-          summary.categoriesCreated++;
+          creates.push({ key, data: entry.data });
         }
+      }
+
+      if (creates.length > 0) {
+        const createdCategories = await this.prisma.$transaction(
+          creates.map((c) => this.prisma.category.create({ data: c.data })),
+        );
+        createdCategories.forEach((cat, i) => categoryIdByKey.set(creates[i].key, cat.id));
+        summary.categoriesCreated += creates.length;
+      }
+      if (updates.length > 0) {
+        await this.prisma.$transaction(
+          updates.map((u) => this.prisma.category.update({ where: { id: u.id }, data: u.data })),
+        );
+        summary.categoriesUpdated += updates.length;
+      }
+
+      for (const [key, entry] of pendingByName) {
+        if (!entry.budget) continue;
+        const categoryId = categoryIdByKey.get(key);
+        if (!categoryId) continue;
+        const period =
+          entry.budget.period === 'monthly' || entry.budget.period === 'annual'
+            ? entry.budget.period
+            : undefined;
+        const { startDate, endDate } = computeBudgetDateRange(period);
+        await upsertCategoryBudget(
+          this.prisma,
+          categoryId,
+          userId,
+          entry.budget.amount,
+          startDate,
+          endDate,
+        );
+      }
+    }
+
+    // Categories (with their subcategories) visible to the user, fetched once and reused by
+    // both the subcategories and expenses sections below instead of a findFirst per row.
+    let categoriesWithSubs: Array<{
+      id: string;
+      name: string;
+      subcategories: { id: string; name: string }[];
+    }> = [];
+    if (subcategoriesCsv || expensesCsv) {
+      categoriesWithSubs = await this.prisma.category.findMany({
+        where: { OR: [{ userId }, { type: 'predefined' }] },
+        include: { subcategories: true },
+      });
+    }
+    const categoryByName = new Map(categoriesWithSubs.map((c) => [c.name.toLowerCase(), c]));
+
+    // Subcategory id lookup, seeded from the pre-fetch above and kept in sync as rows below are
+    // created/updated, so the expenses section (further down) can resolve subcategories that
+    // were just created from subcategories.csv in this same import.
+    const subcategoryIdByKey = new Map<string, string>();
+    for (const c of categoriesWithSubs) {
+      for (const s of c.subcategories) {
+        subcategoryIdByKey.set(`${c.id}|${s.name.toLowerCase()}`, s.id);
       }
     }
 
     // Subcategories
     if (subcategoriesCsv) {
       const rows = await parseCsvText(subcategoriesCsv);
+
+      // Dedupe by category+name (last write wins), same rationale as categories above. Budget
+      // amount/period are tracked separately since they live in the Budget table, not on
+      // Subcategory itself.
+      const pendingByKey = new Map<
+        string,
+        { data: any; budget: { amount: Prisma.Decimal; period: string | null } | null }
+      >();
       for (const r of rows) {
         const categoryName = (r.category || '').trim();
         const name = (r.name || '').trim();
         if (!name || !categoryName) continue;
 
-        const category = await this.prisma.category.findFirst({
-          where: {
-            name: { equals: categoryName, mode: 'insensitive' },
-            OR: [{ userId }, { type: 'predefined' }],
-          },
-        });
+        const category = categoryByName.get(categoryName.toLowerCase());
         if (!category) continue;
 
-        const existing = await this.prisma.subcategory.findFirst({
-          where: { categoryId: category.id, name: { equals: name, mode: 'insensitive' } },
+        pendingByKey.set(`${category.id}|${name.toLowerCase()}`, {
+          data: { name, categoryId: category.id },
+          budget: r.budget_amount
+            ? { amount: new Prisma.Decimal(r.budget_amount), period: r.budget_period || null }
+            : null,
         });
-        const data: any = {
-          name,
-          categoryId: category.id,
-          budgetAmount: r.budget_amount ? new Prisma.Decimal(r.budget_amount) : null,
-          budgetPeriod: r.budget_period || null,
-        };
-        if (existing) {
-          await this.prisma.subcategory.update({ where: { id: existing.id }, data });
+      }
+
+      const creates: { key: string; data: any }[] = [];
+      const updates: { id: string; data: any }[] = [];
+      for (const [key, entry] of pendingByKey) {
+        const existingId = subcategoryIdByKey.get(key);
+        if (existingId) {
+          updates.push({ id: existingId, data: entry.data });
         } else {
-          await this.prisma.subcategory.create({ data });
+          creates.push({ key, data: entry.data });
         }
-        summary.subcategoriesUpserted++;
+      }
+
+      if (creates.length > 0) {
+        const createdSubcategories = await this.prisma.$transaction(
+          creates.map((c) => this.prisma.subcategory.create({ data: c.data })),
+        );
+        for (const sub of createdSubcategories) {
+          subcategoryIdByKey.set(`${sub.categoryId}|${sub.name.toLowerCase()}`, sub.id);
+        }
+      }
+      if (updates.length > 0) {
+        await this.prisma.$transaction(
+          updates.map((u) => this.prisma.subcategory.update({ where: { id: u.id }, data: u.data })),
+        );
+      }
+      summary.subcategoriesUpserted += pendingByKey.size;
+
+      for (const [key, entry] of pendingByKey) {
+        if (!entry.budget) continue;
+        const subcategoryId = subcategoryIdByKey.get(key);
+        if (!subcategoryId) continue;
+        const period =
+          entry.budget.period === 'monthly' || entry.budget.period === 'annual'
+            ? entry.budget.period
+            : undefined;
+        const { startDate, endDate } = computeBudgetDateRange(period);
+        await upsertSubcategoryBudget(
+          this.prisma,
+          subcategoryId,
+          userId,
+          entry.budget.amount,
+          startDate,
+          endDate,
+        );
       }
     }
 
     // Expenses
     if (expensesCsv) {
       const rows = await parseCsvText(expensesCsv);
+
+      // Pre-fetch this user's expenses once for O(1) in-memory duplicate detection instead of
+      // a findFirst per row. Deliberately not filtering deletedAt to match prior behavior.
+      const existingExpenses = await this.prisma.expense.findMany({
+        where: { userId },
+        select: { amount: true, date: true, description: true },
+      });
+      const seenKeys = new Set(
+        existingExpenses.map((e) => this.duplicateKey(e.amount.toNumber(), e.date, e.description)),
+      );
+
+      const creates: Prisma.ExpenseCreateManyInput[] = [];
       for (const r of rows) {
         const amount = parseFloat(r.amount);
         const date = this.parseDate(r.date || '');
@@ -336,46 +461,36 @@ export class ImportService {
         const description = (r.description || '').trim();
         if (!amount || !date || !categoryName) continue;
 
-        const category = await this.prisma.category.findFirst({
-          where: {
-            name: { equals: categoryName, mode: 'insensitive' },
-            OR: [{ userId }, { type: 'predefined' }],
-          },
-        });
+        const category = categoryByName.get(categoryName.toLowerCase());
         if (!category) continue;
 
-        let subcategoryId: string | undefined = undefined;
+        let subcategoryId: string | undefined;
         if (subcategoryName) {
-          const sub = await this.prisma.subcategory.findFirst({
-            where: {
-              categoryId: category.id,
-              name: { equals: subcategoryName, mode: 'insensitive' },
-            },
-          });
-          if (sub) subcategoryId = sub.id;
+          subcategoryId = subcategoryIdByKey.get(`${category.id}|${subcategoryName.toLowerCase()}`);
         }
 
-        const duplicate = await this.checkForDuplicate(userId, {
-          amount,
-          date,
-          description,
-        });
-        if (duplicate) continue;
+        const key = this.duplicateKey(amount, date, description);
+        if (seenKeys.has(key)) continue;
+        seenKeys.add(key);
 
-        await this.prisma.expense.create({
-          data: {
-            userId,
-            categoryId: category.id,
-            subcategoryId: subcategoryId ?? null,
-            amount: new Prisma.Decimal(amount),
-            date,
-            description: description || null,
-            source: 'imported',
-            status: (r.status as any) || 'confirmed',
-            merchantName: r.merchant_name || null,
-          },
+        creates.push({
+          userId,
+          categoryId: category.id,
+          subcategoryId: subcategoryId ?? null,
+          amount: new Prisma.Decimal(amount),
+          date,
+          description: description || null,
+          source: 'imported',
+          status: (r.status as any) || 'confirmed',
+          merchantName: r.merchant_name || null,
         });
-        summary.expensesCreated++;
+      }
+
+      const batchSize = 1000;
+      for (let i = 0; i < creates.length; i += batchSize) {
+        const batch = creates.slice(i, i + batchSize);
+        const result = await this.prisma.expense.createMany({ data: batch });
+        summary.expensesCreated += result.count;
       }
     }
 
